@@ -1,0 +1,410 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta
+    name="viewport"
+    content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no"
+  />
+
+  <title>My Charades Game</title>
+
+  <style>
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      font-family: Arial, sans-serif;
+      background: #f3f4f6;
+      color: #111827;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      padding: 20px;
+    }
+
+    .app {
+      width: 100%;
+      max-width: 600px;
+      background: white;
+      border-radius: 24px;
+      padding: 24px;
+      box-shadow: 0 12px 35px rgba(0, 0, 0, 0.12);
+      text-align: center;
+    }
+
+    h1 {
+      margin-top: 0;
+      font-size: 36px;
+    }
+
+    h2 {
+      margin-bottom: 10px;
+    }
+
+    select,
+    button {
+      width: 100%;
+      padding: 16px;
+      margin-top: 12px;
+      font-size: 18px;
+      border-radius: 14px;
+    }
+
+    select {
+      border: 2px solid #d1d5db;
+      background: white;
+    }
+
+    button {
+      border: none;
+      cursor: pointer;
+      font-weight: bold;
+    }
+
+    .primary-button {
+      background: #2563eb;
+      color: white;
+    }
+
+    .correct-button {
+      background: #16a34a;
+      color: white;
+    }
+
+    .skip-button {
+      background: #f59e0b;
+      color: white;
+    }
+
+    .word-card {
+      min-height: 230px;
+      margin: 25px 0;
+      padding: 25px;
+      border-radius: 24px;
+      background: #dbeafe;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      font-size: 46px;
+      font-weight: bold;
+      overflow-wrap: anywhere;
+    }
+
+    .game-info {
+      display: flex;
+      justify-content: space-between;
+      font-size: 22px;
+      font-weight: bold;
+    }
+
+    .button-row {
+      display: flex;
+      gap: 12px;
+    }
+
+    .hidden {
+      display: none;
+    }
+
+    #resultsList {
+      text-align: left;
+      padding-left: 20px;
+    }
+
+    .correct-result {
+      color: #15803d;
+    }
+
+    .skip-result {
+      color: #b45309;
+    }
+  </style>
+</head>
+
+<body>
+  <main class="app">
+    <section id="menuScreen">
+      <h1>Charades</h1>
+
+      <p>Choose a category and start guessing.</p>
+
+      <select id="categorySelect"></select>
+
+      <select id="timeSelect">
+  	<option value="30">30 seconds</option>
+  	<option value="45">45 seconds</option>
+  	<option value="60" selected>60 seconds</option>
+  	<option value="90">90 seconds</option>
+  	<option value="120">2 minutes</option>
+      </select>
+
+      <button class="primary-button" onclick="startGame()">
+        Start Game
+      </button>
+    </section>
+
+    <section id="gameScreen" class="hidden">
+      <div class="game-info">
+        <span>Time: <span id="timeRemaining">60</span></span>
+        <span>Score: <span id="score">0</span></span>
+      </div>
+
+      <div id="wordCard" class="word-card">
+        Loading...
+      </div>
+
+      <div class="button-row">
+        <button class="skip-button" onclick="answerWord(false)">
+          Skip
+        </button>
+
+        <button class="correct-button" onclick="answerWord(true)">
+          Correct
+        </button>
+      </div>
+    </section>
+
+    <section id="resultsScreen" class="hidden">
+      <h1>Round Complete</h1>
+
+      <h2>
+        Final score:
+        <span id="finalScore">0</span>
+      </h2>
+
+      <ul id="resultsList"></ul>
+
+      <button class="primary-button" onclick="returnToMenu()">
+        Play Again
+      </button>
+    </section>
+  </main>
+
+  <script>
+    const categories = {
+      Animals: [
+        "Elephant",
+        "Penguin",
+        "Giraffe",
+        "Kangaroo",
+        "Dolphin",
+        "Octopus",
+        "Crocodile",
+        "Flamingo",
+        "Gorilla",
+        "Butterfly",
+        "Shark",
+        "Tiger",
+        "Lion",
+        "Monkey",
+        "Rabbit",
+        "Turtle",
+        "Snake",
+        "Horse",
+        "Zebra",
+        "Owl"
+      ],
+
+      Movies: [
+        "Titanic",
+        "Avatar",
+        "Frozen",
+        "Shrek",
+        "Jaws",
+        "The Avengers",
+        "Jurassic Park",
+        "Toy Story",
+        "The Lion King",
+        "Finding Nemo",
+        "Spider-Man",
+        "Iron Man",
+        "Black Panther",
+        "The Dark Knight",
+        "Home Alone",
+        "Harry Potter",
+        "The Hunger Games",
+        "Star Wars",
+        "The Matrix",
+        "Ghostbusters"
+      ],
+
+      "Video Games": [
+        "Minecraft",
+        "Fortnite",
+        "Mario Kart",
+        "Pokémon",
+        "Valorant",
+        "Roblox",
+        "The Sims",
+        "Among Us",
+        "Grand Theft Auto",
+        "Call of Duty",
+        "Super Mario",
+        "The Legend of Zelda",
+        "Overwatch",
+        "Rocket League",
+        "Fall Guys",
+        "Animal Crossing",
+        "Clash of Clans",
+        "Apex Legends",
+        "Terraria",
+        "Wii Sports"
+      ]
+    };
+
+    const categorySelect = document.getElementById("categorySelect");
+    const timeSelect = document.getElementById("timeSelect");
+    const menuScreen = document.getElementById("menuScreen");
+    const gameScreen = document.getElementById("gameScreen");
+    const resultsScreen = document.getElementById("resultsScreen");
+    const wordCard = document.getElementById("wordCard");
+    const timeDisplay = document.getElementById("timeRemaining");
+    const scoreDisplay = document.getElementById("score");
+    const finalScoreDisplay = document.getElementById("finalScore");
+    const resultsList = document.getElementById("resultsList");
+
+    let availableWords = [];
+    let currentWord = "";
+    let results = [];
+    let score = 0;
+    let timeRemaining = 60;
+    let timer = null;
+    let gameActive = false;
+
+    function loadCategories() {
+      categorySelect.innerHTML = "";
+
+      Object.keys(categories).forEach((categoryName) => {
+        const option = document.createElement("option");
+        option.value = categoryName;
+        option.textContent =
+          `${categoryName} (${categories[categoryName].length} words)`;
+
+        categorySelect.appendChild(option);
+      });
+    }
+
+    function removeDuplicates(words) {
+      const cleanedWords = words.map((word) => word.trim());
+
+      return [...new Set(cleanedWords)];
+    }
+
+    function shuffleArray(array) {
+      const shuffled = [...array];
+
+      for (let i = shuffled.length - 1; i > 0; i--) {
+        const randomIndex = Math.floor(Math.random() * (i + 1));
+
+        [shuffled[i], shuffled[randomIndex]] =
+          [shuffled[randomIndex], shuffled[i]];
+      }
+
+      return shuffled;
+    }
+
+    function startGame() {
+      const selectedCategory = categorySelect.value;
+      const categoryWords = categories[selectedCategory];
+
+      availableWords = shuffleArray(removeDuplicates(categoryWords));
+      results = [];
+      score = 0;
+      timeRemaining = Number(timeSelect.value);
+      gameActive = true;
+
+      scoreDisplay.textContent = score;
+      timeDisplay.textContent = timeRemaining;
+
+      menuScreen.classList.add("hidden");
+      resultsScreen.classList.add("hidden");
+      gameScreen.classList.remove("hidden");
+
+      showNextWord();
+
+      clearInterval(timer);
+
+      timer = setInterval(() => {
+        timeRemaining--;
+        timeDisplay.textContent = timeRemaining;
+
+        if (timeRemaining <= 0) {
+          finishGame();
+        }
+      }, 1000);
+    }
+
+    function showNextWord() {
+      if (!gameActive) {
+        return;
+      }
+
+      if (availableWords.length === 0) {
+        finishGame();
+        return;
+      }
+
+      currentWord = availableWords.shift();
+      wordCard.textContent = currentWord;
+    }
+
+    function answerWord(wasCorrect) {
+      if (!gameActive || !currentWord) {
+        return;
+      }
+
+      results.push({
+        word: currentWord,
+        correct: wasCorrect
+      });
+
+      if (wasCorrect) {
+        score++;
+        scoreDisplay.textContent = score;
+      }
+
+      showNextWord();
+    }
+
+    function finishGame() {
+      if (!gameActive) {
+        return;
+      }
+
+      gameActive = false;
+      clearInterval(timer);
+
+      gameScreen.classList.add("hidden");
+      resultsScreen.classList.remove("hidden");
+
+      finalScoreDisplay.textContent = score;
+      resultsList.innerHTML = "";
+
+      results.forEach((result) => {
+        const listItem = document.createElement("li");
+
+        if (result.correct) {
+          listItem.textContent = `Correct: ${result.word}`;
+          listItem.className = "correct-result";
+        } else {
+          listItem.textContent = `Skipped: ${result.word}`;
+          listItem.className = "skip-result";
+        }
+
+        resultsList.appendChild(listItem);
+      });
+    }
+
+    function returnToMenu() {
+      resultsScreen.classList.add("hidden");
+      menuScreen.classList.remove("hidden");
+    }
+
+    loadCategories();
+  </script>
+</body>
+</html>
