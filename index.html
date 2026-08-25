@@ -213,44 +213,41 @@
       color: white;
     }
 
-    @media screen and (orientation: portrait) {
-      #gameScreen .landscape-content {
-        display: none;
-      }
+   #rotateMessage {
+  display: none !important;
+}
 
-      #gameScreen #rotateMessage {
-        display: flex;
-        min-height: 70vh;
-        font-size: 36px;
-      }
-    }
+#gameScreen .landscape-content {
+  display: block !important;
+}
 
-    @media screen and (orientation: landscape) {
-      body {
-        padding: 6px;
-      }
+@media screen and (orientation: landscape) {
+  body {
+    padding: 6px;
+  }
 
-      .app {
-        max-width: none;
-        width: 100%;
-        min-height: 96vh;
-        padding: 12px 22px;
-        border-radius: 16px;
-      }
+  .app {
+    max-width: none;
+    width: 100%;
+    min-height: 96vh;
+    padding: 12px 22px;
+    border-radius: 16px;
+  }
 
-      #gameScreen {
-        min-height: 92vh;
-      }
+  #gameScreen {
+    min-height: 92vh;
+  }
 
-      .word-card {
-        min-height: 64vh;
-        margin: 8px 0;
-      }
+  .word-card {
+    min-height: 64vh;
+    margin: 8px 0;
+  }
 
-      .game-info {
-        font-size: 20px;
-      }
-    }
+  .game-info {
+    font-size: 20px;
+  }
+}
+    
   </style>
 </head>
 
