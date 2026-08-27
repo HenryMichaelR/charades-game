@@ -18,7 +18,28 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Add Celebrity word bank
-        run: python .github/scripts/add_celebrity_category.py
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          path = Path('.github/scripts/add_celebrity_category.py')
+          text = path.read_text(encoding='utf-8')
+          old = '''if not text.endswith("\\n};"):
+              raise SystemExit("Unexpected words.js ending")
+
+          addition = ',\\n  "Celebrity": ' + json.dumps(celebrity, ensure_ascii=False, indent=4).replace("\\n", "\\n  ") + '\\n};'
+          text = text[:-3] + addition'''
+          new = '''stripped = text.rstrip()
+          if not stripped.endswith("};"):
+              raise SystemExit("Unexpected words.js ending")
+
+          addition = ',\\n  "Celebrity": ' + json.dumps(celebrity, ensure_ascii=False, indent=4).replace("\\n", "\\n  ") + '\\n};\\n'
+          text = stripped[:-2] + addition'''
+          if old not in text:
+              raise SystemExit('Could not patch the insertion logic')
+          path.write_text(text.replace(old, new), encoding='utf-8')
+          PY
+          python .github/scripts/add_celebrity_category.py
 
       - name: Validate word banks
         shell: bash
