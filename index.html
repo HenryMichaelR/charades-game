@@ -866,12 +866,22 @@
       return Math.atan2(gravityZ, uprightComponent) * 180 / Math.PI;
     }
 
+    function normalizeAngle(angle) {
+      return ((angle + 180) % 360 + 360) % 360 - 180;
+    }
+
+    function angleDifference(currentAngle, referenceAngle) {
+      return normalizeAngle(currentAngle - referenceAngle);
+    }
+
     function smoothPitch(nextPitch) {
       if (filteredPitch === null) {
-        filteredPitch = nextPitch;
+        filteredPitch = normalizeAngle(nextPitch);
       } else {
-        filteredPitch +=
-          (nextPitch - filteredPitch) * tiltSmoothing;
+        const difference = angleDifference(nextPitch, filteredPitch);
+        filteredPitch = normalizeAngle(
+          filteredPitch + difference * tiltSmoothing
+        );
       }
 
       return filteredPitch;
@@ -907,7 +917,7 @@
       }
 
       if (
-        Math.abs(pitch - centreReferencePitch) > centreStabilityRadius
+        Math.abs(angleDifference(pitch, centreReferencePitch)) > centreStabilityRadius
       ) {
         centreReferencePitch = pitch;
         centreStableSince = now;
@@ -945,7 +955,7 @@
 
       if (
         neutralPitch === null ||
-        Math.abs(pitch - neutralPitch) > returnToCentreZone
+        Math.abs(angleDifference(pitch, neutralPitch)) > returnToCentreZone
       ) {
         centreStableSince = null;
         return;
@@ -974,11 +984,13 @@
         return;
       }
 
-      const difference = pitch - neutralPitch;
+      const difference = angleDifference(pitch, neutralPitch);
 
       if (Math.abs(difference) <= returnToCentreZone) {
         resetGestureHold();
-        neutralPitch += difference * 0.025;
+        neutralPitch = normalizeAngle(
+          neutralPitch + difference * 0.025
+        );
         return;
       }
 
