@@ -438,8 +438,9 @@
     let results = [];
     let score = 0;
     let timeRemaining = 60;
-    let timer = null;
-    let roundEndsAt = null;
+    let timerAnimationFrame = null;
+    let timerEndTimeout = null;
+    let timerStarted = false;
     let countdownTimeout = null;
     let orientationPollTimer = null;
     let gameActive = false;
@@ -683,7 +684,8 @@
       results = [];
       score = 0;
       timeRemaining = Number(timeSelect.value);
-      roundEndsAt = null;
+      timerStarted = false;
+      stopRoundTimer();
       currentWord = "";
       gameActive = true;
       gamePhase = "setup";
@@ -699,7 +701,7 @@
       document.body.classList.toggle("motion-game", motionEnabled);
       updateOrientationState();
 
-      clearInterval(timer);
+      stopRoundTimer();
       clearTimeout(countdownTimeout);
       clearInterval(orientationPollTimer);
 
@@ -754,12 +756,76 @@
       nextCount();
     }
 
+    function stopRoundTimer() {
+      if (timerAnimationFrame !== null) {
+        cancelAnimationFrame(timerAnimationFrame);
+        timerAnimationFrame = null;
+      }
+
+      if (timerEndTimeout !== null) {
+        clearTimeout(timerEndTimeout);
+        timerEndTimeout = null;
+      }
+    }
+
+    function startRoundTimer() {
+      if (timerStarted || !gameActive) {
+        return;
+      }
+
+      timerStarted = true;
+      stopRoundTimer();
+
+      const durationMs = timeRemaining * 1000;
+      const endsAt = Date.now() + durationMs;
+
+      function drawTimer() {
+        if (!gameActive || !timerStarted) {
+          return;
+        }
+
+        const millisecondsRemaining = endsAt - Date.now();
+        const displayedSeconds = Math.max(
+          0,
+          Math.ceil(millisecondsRemaining / 1000)
+        );
+
+        if (displayedSeconds !== timeRemaining) {
+          timeRemaining = displayedSeconds;
+          timeDisplay.textContent = String(displayedSeconds);
+        }
+
+        if (millisecondsRemaining <= 0) {
+          timeRemaining = 0;
+          timeDisplay.textContent = "0";
+          finishGame();
+          return;
+        }
+
+        timerAnimationFrame = requestAnimationFrame(drawTimer);
+      }
+
+      timeDisplay.textContent = String(timeRemaining);
+      timerAnimationFrame = requestAnimationFrame(drawTimer);
+
+      timerEndTimeout = setTimeout(() => {
+        if (!gameActive || !timerStarted) {
+          return;
+        }
+
+        timeRemaining = 0;
+        timeDisplay.textContent = "0";
+        finishGame();
+      }, durationMs + 100);
+    }
+
     function beginRound() {
       if (!gameActive) {
         return;
       }
 
-      clearInterval(timer);
+      stopRoundTimer();
+      timerStarted = false;
       resetMotionState();
       lastScreenAngle = getScreenAngle();
 
@@ -771,27 +837,6 @@
       } else {
         beginAutomaticCentering(false);
       }
-
-      timer = setInterval(() => {
-        if (!gameActive || roundEndsAt === null) {
-          return;
-        }
-
-        const millisecondsRemaining = roundEndsAt - Date.now();
-        const nextTimeRemaining = Math.max(
-          0,
-          Math.ceil(millisecondsRemaining / 1000)
-        );
-
-        if (nextTimeRemaining !== timeRemaining) {
-          timeRemaining = nextTimeRemaining;
-          timeDisplay.textContent = timeRemaining;
-        }
-
-        if (millisecondsRemaining <= 0) {
-          finishGame();
-        }
-      }, 200);
     }
 
     function getScreenAngle() {
@@ -1127,10 +1172,7 @@
 
       currentWord = availableWords.shift();
       wordCard.textContent = currentWord;
-
-      if (roundEndsAt === null) {
-        roundEndsAt = Date.now() + timeRemaining * 1000;
-      }
+      startRoundTimer();
     }
 
     function finishGame() {
@@ -1140,8 +1182,8 @@
 
       gameActive = false;
       gamePhase = "finished";
-      roundEndsAt = null;
-      clearInterval(timer);
+      timerStarted = false;
+      stopRoundTimer();
       clearTimeout(countdownTimeout);
       clearInterval(orientationPollTimer);
 
@@ -1171,7 +1213,7 @@
     function returnToMenu() {
       gameActive = false;
       gamePhase = "idle";
-      clearInterval(timer);
+      stopRoundTimer();
       clearTimeout(countdownTimeout);
       clearInterval(orientationPollTimer);
 
