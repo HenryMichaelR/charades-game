@@ -1,0 +1,74 @@
+name: Rebuild mainstream Video Games category
+
+on:
+  push:
+    paths:
+      - ".github/workflows/rebuild-video-games.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  rebuild:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Replace Video Games word bank
+        run: python .github/scripts/rebuild_video_games.py
+
+      - name: Validate word bank
+        run: |
+          node --check words.js
+          python - <<'PY'
+          import json
+          import re
+          from pathlib import Path
+
+          text = Path("words.js").read_text(encoding="utf-8")
+          payload = text.split("window.CHARADES_CATEGORIES = ", 1)[1].strip()
+          categories = json.loads(payload[:-1])
+          games = categories["Video Games"]
+          normalized = [re.sub(r"[^a-z0-9]+", "", game.casefold()) for game in games]
+
+          assert len(games) == 120, len(games)
+          assert len(normalized) == len(set(normalized))
+
+          required = [
+              "Minecraft", "Fortnite", "Roblox", "Grand Theft Auto V",
+              "Mario Kart", "Pokémon", "Among Us", "The Sims",
+              "Candy Crush", "Wii Sports", "Five Nights at Freddy's",
+              "Red Dead Redemption 2", "EA Sports FC / FIFA"
+          ]
+          for game in required:
+              assert game in games, game
+
+          removed_obscure = [
+              "Warzone 2100",
+              "Friend Collection",
+              "English Training: Have Fun Improving Your Skills!",
+              "Imagine: Babyz",
+              "World Soccer Winning Eleven 7 International",
+              "Namco Museum Vol.3",
+          ]
+          for game in removed_obscure:
+              assert game not in games, game
+
+          print("Validated 120 mainstream Video Games entries")
+          PY
+
+      - name: Commit final word bank
+        run: |
+          rm -f .github/scripts/rebuild_video_games.py
+          rm -f .github/workflows/rebuild-video-games.yml
+          rmdir .github/scripts 2>/dev/null || true
+          rmdir .github/workflows 2>/dev/null || true
+          rmdir .github 2>/dev/null || true
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "Replace Video Games list with mainstream titles"
+          git push
