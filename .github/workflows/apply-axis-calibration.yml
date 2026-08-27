@@ -1,0 +1,41 @@
+name: Apply axis calibration fix
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Patch motion calibration
+        run: python .github/patch_axis_calibration.py
+
+      - name: Validate JavaScript
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import re
+          text = Path('index.html').read_text(encoding='utf-8')
+          match = re.search(r'<script>([\s\S]*)</script>', text)
+          if not match:
+              raise SystemExit('Script block not found')
+          Path('/tmp/game.js').write_text(match.group(1), encoding='utf-8')
+          PY
+          node --check /tmp/game.js
+
+      - name: Commit fixed game
+        run: |
+          rm .github/patch_axis_calibration.py
+          rm .github/workflows/apply-axis-calibration.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add index.html .github/patch_axis_calibration.py .github/workflows/apply-axis-calibration.yml
+          git commit -m "Fix correct and skip axis calibration"
+          git push
