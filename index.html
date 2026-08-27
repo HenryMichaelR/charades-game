@@ -468,7 +468,7 @@
     const answerCooldownMs = 550;
     const centreHoldMs = 500;
     const gestureHoldMs = 180;
-    const standardCorrectDirection = 1;
+    const standardCorrectDirection = -1;
 
     function loadCategories() {
       categorySelect.innerHTML = "";
@@ -773,7 +773,7 @@
       timer = setInterval(() => {
         if (
           !gameActive ||
-          gamePhase !== "playing" ||
+          !currentWord ||
           (motionEnabled && !isPhoneLandscape())
         ) {
           return;
