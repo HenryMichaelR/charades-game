@@ -2,15 +2,12 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-
   <meta
     name="viewport"
     content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no"
   />
-
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-
   <title>Charades</title>
 
   <style>
@@ -90,28 +87,28 @@
       font-size: 18px;
     }
 
-    .primary-button {
+    .primary-button,
+    .secondary-button {
       width: 100%;
-      margin-top: 20px;
-      padding: 16px;
-      border: none;
       border-radius: 14px;
-      background: #2563eb;
-      color: white;
-      font-size: 19px;
+      font-size: 18px;
       font-weight: bold;
     }
 
+    .primary-button {
+      margin-top: 20px;
+      padding: 16px;
+      border: none;
+      background: #2563eb;
+      color: white;
+    }
+
     .secondary-button {
-      width: 100%;
       margin-top: 12px;
       padding: 14px;
       border: 2px solid #2563eb;
-      border-radius: 14px;
       background: white;
       color: #2563eb;
-      font-size: 18px;
-      font-weight: bold;
     }
 
     .message {
@@ -156,6 +153,17 @@
       overflow-wrap: anywhere;
       user-select: none;
       -webkit-user-select: none;
+      transition: background-color 120ms ease, transform 120ms ease;
+    }
+
+    .word-card.correct-feedback {
+      background: #bbf7d0;
+      transform: scale(1.02);
+    }
+
+    .word-card.skip-feedback {
+      background: #fde68a;
+      transform: scale(0.98);
     }
 
     .game-instructions {
@@ -163,10 +171,6 @@
       font-size: 16px;
       font-weight: bold;
       color: #4b5563;
-    }
-
-    #rotateMessage {
-      display: none;
     }
 
     #resultsList {
@@ -213,53 +217,43 @@
       color: white;
     }
 
-   #rotateMessage {
-  display: none !important;
-}
+    @media screen and (orientation: landscape) {
+      body {
+        padding: 6px;
+      }
 
-#gameScreen .landscape-content {
-  display: block !important;
-}
+      .app {
+        max-width: none;
+        width: 100%;
+        min-height: 96vh;
+        padding: 12px 22px;
+        border-radius: 16px;
+      }
 
-@media screen and (orientation: landscape) {
-  body {
-    padding: 6px;
-  }
+      #gameScreen {
+        min-height: 92vh;
+      }
 
-  .app {
-    max-width: none;
-    width: 100%;
-    min-height: 96vh;
-    padding: 12px 22px;
-    border-radius: 16px;
-  }
+      .word-card {
+        min-height: 64vh;
+        margin: 8px 0;
+      }
 
-  #gameScreen {
-    min-height: 92vh;
-  }
-
-  .word-card {
-    min-height: 64vh;
-    margin: 8px 0;
-  }
-
-  .game-info {
-    font-size: 20px;
-  }
-}
-    
+      .game-info {
+        font-size: 20px;
+      }
+    }
   </style>
 </head>
 
 <body>
   <main class="app">
-    <!-- MENU SCREEN -->
     <section id="menuScreen">
       <h1>Charades</h1>
 
       <p>
-        Choose a category and turn length. Hold the phone against your forehead
-        and tilt it to record each answer.
+        Choose a category and turn length. Hold the phone horizontally against
+        your forehead and tilt it to record each answer.
       </p>
 
       <label for="categorySelect">Category</label>
@@ -295,74 +289,40 @@
       <p id="motionMessage" class="message"></p>
 
       <p class="small-text">
-        On iPhone, open the published HTTPS website in Safari. Motion controls
-        normally do not work when opening the HTML file directly.
+        On iPhone, open the published HTTPS website in Safari. Turn off silent
+        mode and raise the media volume to hear the answer sounds.
       </p>
     </section>
 
-    <!-- GAME SCREEN -->
     <section id="gameScreen" class="hidden">
-      <div id="rotateMessage" class="word-card">
-        Turn your phone sideways
+      <div class="game-info">
+        <span>Time: <span id="timeRemaining">60</span></span>
+        <span>Score: <span id="score">0</span></span>
       </div>
 
-      <div class="landscape-content">
-        <div class="game-info">
-          <span>
-            Time:
-            <span id="timeRemaining">60</span>
-          </span>
+      <div id="wordCard" class="word-card">Get Ready</div>
 
-          <span>
-            Score:
-            <span id="score">0</span>
-          </span>
-        </div>
+      <p class="game-instructions">
+        Tilt forward for Correct • Tilt backward for Skip
+      </p>
 
-        <div id="wordCard" class="word-card">
-          Get Ready
-        </div>
+      <div id="testControls" class="test-controls">
+        <button class="test-skip" type="button" onclick="answerWord(false)">
+          Test Skip
+        </button>
 
-        <p class="game-instructions">
-          Tilt forward for Correct • Tilt backward for Skip
-        </p>
-
-        <div id="testControls" class="test-controls">
-          <button
-            class="test-skip"
-            type="button"
-            onclick="answerWord(false)"
-          >
-            Test Skip
-          </button>
-
-          <button
-            class="test-correct"
-            type="button"
-            onclick="answerWord(true)"
-          >
-            Test Correct
-          </button>
-        </div>
+        <button class="test-correct" type="button" onclick="answerWord(true)">
+          Test Correct
+        </button>
       </div>
     </section>
 
-    <!-- RESULTS SCREEN -->
     <section id="resultsScreen" class="hidden">
       <h1>Round Complete</h1>
-
-      <h2>
-        Final score:
-        <span id="finalScore">0</span>
-      </h2>
-
+      <h2>Final score: <span id="finalScore">0</span></h2>
       <ul id="resultsList"></ul>
 
-      <button
-        class="primary-button"
-        type="button"
-        onclick="returnToMenu()"
-      >
+      <button class="primary-button" type="button" onclick="returnToMenu()">
         Play Again
       </button>
     </section>
@@ -371,206 +331,65 @@
   <script>
     const categories = {
       Animals: [
-        "Elephant",
-        "Penguin",
-        "Giraffe",
-        "Kangaroo",
-        "Dolphin",
-        "Octopus",
-        "Crocodile",
-        "Flamingo",
-        "Gorilla",
-        "Butterfly",
-        "Shark",
-        "Tiger",
-        "Lion",
-        "Monkey",
-        "Rabbit",
-        "Turtle",
-        "Snake",
-        "Horse",
-        "Zebra",
-        "Owl",
-        "Panda",
-        "Koala",
-        "Wolf",
-        "Fox",
-        "Bear",
-        "Eagle",
-        "Peacock",
-        "Camel",
-        "Hippo",
-        "Rhino"
+        "Elephant", "Penguin", "Giraffe", "Kangaroo", "Dolphin",
+        "Octopus", "Crocodile", "Flamingo", "Gorilla", "Butterfly",
+        "Shark", "Tiger", "Lion", "Monkey", "Rabbit", "Turtle",
+        "Snake", "Horse", "Zebra", "Owl", "Panda", "Koala", "Wolf",
+        "Fox", "Bear", "Eagle", "Peacock", "Camel", "Hippo", "Rhino"
       ],
 
       Movies: [
-        "Titanic",
-        "Avatar",
-        "Frozen",
-        "Shrek",
-        "Jaws",
-        "The Avengers",
-        "Jurassic Park",
-        "Toy Story",
-        "The Lion King",
-        "Finding Nemo",
-        "Spider-Man",
-        "Iron Man",
-        "Black Panther",
-        "The Dark Knight",
-        "Home Alone",
-        "Harry Potter",
-        "The Hunger Games",
-        "Star Wars",
-        "The Matrix",
-        "Ghostbusters",
-        "Barbie",
-        "Oppenheimer",
-        "The Incredibles",
-        "Moana",
-        "Aladdin",
-        "Cars",
-        "Ratatouille",
-        "The Notebook",
-        "Mean Girls",
-        "Interstellar"
+        "Titanic", "Avatar", "Frozen", "Shrek", "Jaws", "The Avengers",
+        "Jurassic Park", "Toy Story", "The Lion King", "Finding Nemo",
+        "Spider-Man", "Iron Man", "Black Panther", "The Dark Knight",
+        "Home Alone", "Harry Potter", "The Hunger Games", "Star Wars",
+        "The Matrix", "Ghostbusters", "Barbie", "Oppenheimer",
+        "The Incredibles", "Moana", "Aladdin", "Cars", "Ratatouille",
+        "The Notebook", "Mean Girls", "Interstellar"
       ],
 
       "Video Games": [
-        "Minecraft",
-        "Fortnite",
-        "Mario Kart",
-        "Pokémon",
-        "Valorant",
-        "Roblox",
-        "The Sims",
-        "Among Us",
-        "Grand Theft Auto",
-        "Call of Duty",
-        "Super Mario",
-        "The Legend of Zelda",
-        "Overwatch",
-        "Rocket League",
-        "Fall Guys",
-        "Animal Crossing",
-        "Clash of Clans",
-        "Apex Legends",
-        "Terraria",
-        "Wii Sports",
-        "League of Legends",
-        "Marvel Rivals",
-        "Mortal Kombat",
-        "Street Fighter",
-        "Candy Crush",
-        "Plants vs. Zombies",
-        "Red Dead Redemption",
-        "Halo",
-        "Sonic the Hedgehog",
-        "Five Nights at Freddy's"
+        "Minecraft", "Fortnite", "Mario Kart", "Pokémon", "Valorant",
+        "Roblox", "The Sims", "Among Us", "Grand Theft Auto",
+        "Call of Duty", "Super Mario", "The Legend of Zelda", "Overwatch",
+        "Rocket League", "Fall Guys", "Animal Crossing", "Clash of Clans",
+        "Apex Legends", "Terraria", "Wii Sports", "League of Legends",
+        "Marvel Rivals", "Mortal Kombat", "Street Fighter", "Candy Crush",
+        "Plants vs. Zombies", "Red Dead Redemption", "Halo",
+        "Sonic the Hedgehog", "Five Nights at Freddy's"
       ],
 
       Marvel: [
-        "Spider-Man",
-        "Iron Man",
-        "Thor",
-        "Hulk",
-        "Black Widow",
-        "Hawkeye",
-        "Captain America",
-        "Black Panther",
-        "Doctor Strange",
-        "Scarlet Witch",
-        "Vision",
-        "Thanos",
-        "Loki",
-        "Deadpool",
-        "Wolverine",
-        "Storm",
-        "Cyclops",
-        "Jean Grey",
-        "Magneto",
-        "Professor X",
-        "Daredevil",
-        "Moon Knight",
-        "Ant-Man",
-        "The Wasp",
-        "Star-Lord",
-        "Groot",
-        "Rocket Raccoon",
-        "Gamora",
-        "Nebula",
-        "Venom"
+        "Spider-Man", "Iron Man", "Thor", "Hulk", "Black Widow", "Hawkeye",
+        "Captain America", "Black Panther", "Doctor Strange", "Scarlet Witch",
+        "Vision", "Thanos", "Loki", "Deadpool", "Wolverine", "Storm",
+        "Cyclops", "Jean Grey", "Magneto", "Professor X", "Daredevil",
+        "Moon Knight", "Ant-Man", "The Wasp", "Star-Lord", "Groot",
+        "Rocket Raccoon", "Gamora", "Nebula", "Venom"
       ],
 
       Disney: [
-        "Mickey Mouse",
-        "Minnie Mouse",
-        "Donald Duck",
-        "Goofy",
-        "Cinderella",
-        "Snow White",
-        "Ariel",
-        "Belle",
-        "Aladdin",
-        "Jasmine",
-        "Simba",
-        "Mufasa",
-        "Elsa",
-        "Anna",
-        "Olaf",
-        "Moana",
-        "Maui",
-        "Stitch",
-        "Peter Pan",
-        "Tinker Bell",
-        "Buzz Lightyear",
-        "Woody",
-        "Lightning McQueen",
-        "Nemo",
-        "Dory",
-        "Winnie the Pooh",
-        "Tigger",
-        "Rapunzel",
-        "Cruella de Vil",
-        "Maleficent"
+        "Mickey Mouse", "Minnie Mouse", "Donald Duck", "Goofy", "Cinderella",
+        "Snow White", "Ariel", "Belle", "Aladdin", "Jasmine", "Simba",
+        "Mufasa", "Elsa", "Anna", "Olaf", "Moana", "Maui", "Stitch",
+        "Peter Pan", "Tinker Bell", "Buzz Lightyear", "Woody",
+        "Lightning McQueen", "Nemo", "Dory", "Winnie the Pooh", "Tigger",
+        "Rapunzel", "Cruella de Vil", "Maleficent"
       ]
     };
 
-    const categorySelect =
-      document.getElementById("categorySelect");
-
-    const timeSelect =
-      document.getElementById("timeSelect");
-
-    const menuScreen =
-      document.getElementById("menuScreen");
-
-    const gameScreen =
-      document.getElementById("gameScreen");
-
-    const resultsScreen =
-      document.getElementById("resultsScreen");
-
-    const wordCard =
-      document.getElementById("wordCard");
-
-    const timeDisplay =
-      document.getElementById("timeRemaining");
-
-    const scoreDisplay =
-      document.getElementById("score");
-
-    const finalScoreDisplay =
-      document.getElementById("finalScore");
-
-    const resultsList =
-      document.getElementById("resultsList");
-
-    const motionMessage =
-      document.getElementById("motionMessage");
-
-    const testControls =
-      document.getElementById("testControls");
+    const categorySelect = document.getElementById("categorySelect");
+    const timeSelect = document.getElementById("timeSelect");
+    const menuScreen = document.getElementById("menuScreen");
+    const gameScreen = document.getElementById("gameScreen");
+    const resultsScreen = document.getElementById("resultsScreen");
+    const wordCard = document.getElementById("wordCard");
+    const timeDisplay = document.getElementById("timeRemaining");
+    const scoreDisplay = document.getElementById("score");
+    const finalScoreDisplay = document.getElementById("finalScore");
+    const resultsList = document.getElementById("resultsList");
+    const motionMessage = document.getElementById("motionMessage");
+    const testControls = document.getElementById("testControls");
 
     let availableWords = [];
     let currentWord = "";
@@ -589,26 +408,22 @@
     let calibrationEndsAt = 0;
     let lastScreenAngle = null;
 
+    let audioContext = null;
+    let feedbackTimeout = null;
+
     const correctTiltAmount = 28;
     const skipTiltAmount = 28;
     const neutralZone = 10;
-
-/*
-  Change this to -1 if Correct and Skip are reversed.
-*/
-const correctDirection = 1;
+    const correctDirection = 1;
 
     function loadCategories() {
       categorySelect.innerHTML = "";
 
       Object.keys(categories).forEach((categoryName) => {
         const option = document.createElement("option");
-
         option.value = categoryName;
-
         option.textContent =
           `${categoryName} (${categories[categoryName].length} words)`;
-
         categorySelect.appendChild(option);
       });
     }
@@ -633,10 +448,8 @@ const correctDirection = 1;
     function shuffleArray(array) {
       const shuffled = [...array];
 
-      for (let i = shuffled.length - 1; i > 0; i--) {
-        const randomIndex =
-          Math.floor(Math.random() * (i + 1));
-
+      for (let i = shuffled.length - 1; i > 0; i -= 1) {
+        const randomIndex = Math.floor(Math.random() * (i + 1));
         [shuffled[i], shuffled[randomIndex]] =
           [shuffled[randomIndex], shuffled[i]];
       }
@@ -644,16 +457,90 @@ const correctDirection = 1;
       return shuffled;
     }
 
+    function initializeAudio() {
+      const AudioContextClass =
+        window.AudioContext || window.webkitAudioContext;
+
+      if (!AudioContextClass) {
+        return;
+      }
+
+      if (!audioContext) {
+        audioContext = new AudioContextClass();
+      }
+
+      if (audioContext.state === "suspended") {
+        audioContext.resume().catch(() => {});
+      }
+    }
+
+    function playTone(frequency, startTime, duration, volume = 0.28) {
+      if (!audioContext) {
+        return;
+      }
+
+      const oscillator = audioContext.createOscillator();
+      const gainNode = audioContext.createGain();
+
+      oscillator.type = "sine";
+      oscillator.frequency.setValueAtTime(frequency, startTime);
+
+      gainNode.gain.setValueAtTime(volume, startTime);
+      gainNode.gain.exponentialRampToValueAtTime(
+        0.001,
+        startTime + duration
+      );
+
+      oscillator.connect(gainNode);
+      gainNode.connect(audioContext.destination);
+      oscillator.start(startTime);
+      oscillator.stop(startTime + duration);
+    }
+
+    function playCorrectSound() {
+      if (!audioContext) {
+        return;
+      }
+
+      const now = audioContext.currentTime;
+      playTone(660, now, 0.16);
+      playTone(880, now + 0.13, 0.22);
+    }
+
+    function playSkipSound() {
+      if (!audioContext) {
+        return;
+      }
+
+      const now = audioContext.currentTime;
+      playTone(330, now, 0.18);
+      playTone(220, now + 0.14, 0.25);
+    }
+
+    function showAnswerFeedback(wasCorrect) {
+      clearTimeout(feedbackTimeout);
+      wordCard.classList.remove("correct-feedback", "skip-feedback");
+
+      void wordCard.offsetWidth;
+
+      wordCard.classList.add(
+        wasCorrect ? "correct-feedback" : "skip-feedback"
+      );
+
+      feedbackTimeout = setTimeout(() => {
+        wordCard.classList.remove("correct-feedback", "skip-feedback");
+      }, 280);
+    }
+
     async function requestMotionAndStart() {
+      initializeAudio();
       motionMessage.textContent = "";
 
       try {
         if (typeof DeviceOrientationEvent === "undefined") {
           motionEnabled = false;
-
           motionMessage.textContent =
             "This device does not support orientation controls.";
-
           return;
         }
 
@@ -665,10 +552,8 @@ const correctDirection = 1;
 
           if (orientationPermission !== "granted") {
             motionEnabled = false;
-
             motionMessage.textContent =
               "Motion and orientation permission was not granted.";
-
             return;
           }
         }
@@ -682,10 +567,8 @@ const correctDirection = 1;
 
           if (motionPermission !== "granted") {
             motionEnabled = false;
-
             motionMessage.textContent =
               "Motion permission was not granted.";
-
             return;
           }
         }
@@ -704,22 +587,18 @@ const correctDirection = 1;
 
         motionEnabled = true;
         testMode = false;
-
-        motionMessage.textContent =
-          "Motion controls enabled.";
-
+        motionMessage.textContent = "Motion controls enabled.";
         startGame();
       } catch (error) {
         console.error("Motion permission error:", error);
-
         motionEnabled = false;
-
         motionMessage.textContent =
-          "Motion controls could not be enabled. Make sure the game is opened through an HTTPS website in Safari.";
+          "Motion controls could not be enabled. Open the HTTPS website in Safari.";
       }
     }
 
     function startTestGame() {
+      initializeAudio();
       motionEnabled = false;
       testMode = true;
       motionMessage.textContent = "";
@@ -730,10 +609,7 @@ const correctDirection = 1;
       const selectedCategory = categorySelect.value;
       const categoryWords = categories[selectedCategory];
 
-      availableWords = shuffleArray(
-        removeDuplicates(categoryWords)
-      );
-
+      availableWords = shuffleArray(removeDuplicates(categoryWords));
       results = [];
       score = 0;
       timeRemaining = Number(timeSelect.value);
@@ -741,22 +617,15 @@ const correctDirection = 1;
       gameActive = true;
 
       recalibrateTilt();
-
       scoreDisplay.textContent = score;
       timeDisplay.textContent = timeRemaining;
 
       menuScreen.classList.add("hidden");
       resultsScreen.classList.add("hidden");
       gameScreen.classList.remove("hidden");
-
-      if (testMode) {
-        testControls.style.display = "flex";
-      } else {
-        testControls.style.display = "none";
-      }
+      testControls.style.display = testMode ? "flex" : "none";
 
       showNextWord();
-
       clearInterval(timer);
 
       timer = setInterval(() => {
@@ -774,151 +643,111 @@ const correctDirection = 1;
     }
 
     function getScreenAngle() {
-  if (
-    screen.orientation &&
-    typeof screen.orientation.angle === "number"
-  ) {
-    return screen.orientation.angle;
-  }
+      if (
+        screen.orientation &&
+        typeof screen.orientation.angle === "number"
+      ) {
+        return screen.orientation.angle;
+      }
 
-  if (typeof window.orientation === "number") {
-    return window.orientation;
-  }
+      if (typeof window.orientation === "number") {
+        return window.orientation;
+      }
 
-  /*
-    Fallback for browsers that do not report an angle.
-  */
-  return window.innerWidth > window.innerHeight ? 90 : 0;
-}
-
-function isPhoneLandscape() {
-  const angle = getScreenAngle();
-  const normalizedAngle =
-    ((angle % 360) + 360) % 360;
-
-  return (
-    normalizedAngle === 90 ||
-    normalizedAngle === 270 ||
-    window.innerWidth > window.innerHeight
-  );
-}
-
-function getLandscapeTilt(event) {
-  if (event.gamma === null) {
-    return null;
-  }
-
-  const angle = getScreenAngle();
-  const normalizedAngle =
-    ((angle % 360) + 360) % 360;
-
-  /*
-    Reverse gamma when the phone is rotated toward
-    the opposite landscape direction. This keeps the
-    physical tilt direction consistent.
-  */
-  if (normalizedAngle === 270) {
-    return -event.gamma;
-  }
-
-  return event.gamma;
-}
-
-function recalibrateTilt() {
-  currentTilt = null;
-  neutralTilt = null;
-  tiltLocked = true;
-
-  /*
-    Ignore movement briefly while the player positions
-    the horizontal phone against their forehead.
-  */
-  calibrationEndsAt = Date.now() + 1000;
-  lastScreenAngle = getScreenAngle();
-}
-
-function handleOrientation(event) {
-  if (!motionEnabled || !gameActive) {
-    return;
-  }
-
-  /*
-    The game should only respond while the phone
-    is being held horizontally.
-  */
-  if (!isPhoneLandscape()) {
-    return;
-  }
-
-  const screenAngle = getScreenAngle();
-
-  /*
-    Recalibrate if the player rotates the phone
-    to the other landscape direction.
-  */
-  if (screenAngle !== lastScreenAngle) {
-    recalibrateTilt();
-    return;
-  }
-
-  const tiltValue = getLandscapeTilt(event);
-
-  if (tiltValue === null) {
-    return;
-  }
-
-  currentTilt = tiltValue;
-
-  /*
-    Wait for the phone to settle before establishing
-    its neutral forehead position.
-  */
-  if (Date.now() < calibrationEndsAt) {
-    return;
-  }
-
-  if (neutralTilt === null) {
-    neutralTilt = currentTilt;
-    tiltLocked = false;
-    return;
-  }
-
-  const difference =
-    (currentTilt - neutralTilt) * correctDirection;
-
-  /*
-    After an answer, the phone must return close to
-    its original position before another answer can
-    be recorded.
-  */
-  if (tiltLocked) {
-    if (Math.abs(difference) <= neutralZone) {
-      neutralTilt = currentTilt;
-      tiltLocked = false;
+      return window.innerWidth > window.innerHeight ? 90 : 0;
     }
 
-    return;
-  }
+    function isPhoneLandscape() {
+      const angle = getScreenAngle();
+      const normalizedAngle = ((angle % 360) + 360) % 360;
 
-  if (difference >= correctTiltAmount) {
-    registerTiltAnswer(true);
-  } else if (difference <= -skipTiltAmount) {
-    registerTiltAnswer(false);
-  }
-}
+      return (
+        normalizedAngle === 90 ||
+        normalizedAngle === 270 ||
+        window.innerWidth > window.innerHeight
+      );
+    }
 
-function registerTiltAnswer(wasCorrect) {
-  if (tiltLocked || !gameActive) {
-    return;
-  }
+    function getLandscapeTilt(event) {
+      if (event.gamma === null) {
+        return null;
+      }
 
-  tiltLocked = true;
-  answerWord(wasCorrect);
+      const angle = getScreenAngle();
+      const normalizedAngle = ((angle % 360) + 360) % 360;
 
-  if ("vibrate" in navigator) {
-    navigator.vibrate(100);
-  }
-}
+      return normalizedAngle === 270 ? -event.gamma : event.gamma;
+    }
+
+    function recalibrateTilt() {
+      currentTilt = null;
+      neutralTilt = null;
+      tiltLocked = true;
+      calibrationEndsAt = Date.now() + 1000;
+      lastScreenAngle = getScreenAngle();
+    }
+
+    function handleOrientation(event) {
+      if (!motionEnabled || !gameActive || !isPhoneLandscape()) {
+        return;
+      }
+
+      const screenAngle = getScreenAngle();
+
+      if (screenAngle !== lastScreenAngle) {
+        recalibrateTilt();
+        return;
+      }
+
+      const tiltValue = getLandscapeTilt(event);
+
+      if (tiltValue === null) {
+        return;
+      }
+
+      currentTilt = tiltValue;
+
+      if (Date.now() < calibrationEndsAt) {
+        return;
+      }
+
+      if (neutralTilt === null) {
+        neutralTilt = currentTilt;
+        tiltLocked = false;
+        return;
+      }
+
+      const difference =
+        (currentTilt - neutralTilt) * correctDirection;
+
+      if (tiltLocked) {
+        if (Math.abs(difference) <= neutralZone) {
+          neutralTilt = currentTilt;
+          tiltLocked = false;
+        }
+
+        return;
+      }
+
+      if (difference >= correctTiltAmount) {
+        registerTiltAnswer(true);
+      } else if (difference <= -skipTiltAmount) {
+        registerTiltAnswer(false);
+      }
+    }
+
+    function registerTiltAnswer(wasCorrect) {
+      if (tiltLocked || !gameActive) {
+        return;
+      }
+
+      tiltLocked = true;
+      answerWord(wasCorrect);
+
+      if ("vibrate" in navigator) {
+        navigator.vibrate(wasCorrect ? 120 : [70, 60, 70]);
+      }
+    }
 
     function answerWord(wasCorrect) {
       if (!gameActive || !currentWord) {
@@ -933,8 +762,12 @@ function registerTiltAnswer(wasCorrect) {
       if (wasCorrect) {
         score += 1;
         scoreDisplay.textContent = score;
+        playCorrectSound();
+      } else {
+        playSkipSound();
       }
 
+      showAnswerFeedback(wasCorrect);
       showNextWord();
     }
 
@@ -959,10 +792,8 @@ function registerTiltAnswer(wasCorrect) {
 
       gameActive = false;
       clearInterval(timer);
-
       gameScreen.classList.add("hidden");
       resultsScreen.classList.remove("hidden");
-
       finalScoreDisplay.textContent = score;
       resultsList.innerHTML = "";
 
@@ -974,23 +805,11 @@ function registerTiltAnswer(wasCorrect) {
       }
 
       results.forEach((result) => {
-        const listItem =
-          document.createElement("li");
-
-        if (result.correct) {
-          listItem.textContent =
-            `Correct: ${result.word}`;
-
-          listItem.className =
-            "correct-result";
-        } else {
-          listItem.textContent =
-            `Skipped: ${result.word}`;
-
-          listItem.className =
-            "skip-result";
-        }
-
+        const listItem = document.createElement("li");
+        listItem.textContent =
+          `${result.correct ? "Correct" : "Skipped"}: ${result.word}`;
+        listItem.className =
+          result.correct ? "correct-result" : "skip-result";
         resultsList.appendChild(listItem);
       });
     }
@@ -998,37 +817,34 @@ function registerTiltAnswer(wasCorrect) {
     function returnToMenu() {
       gameActive = false;
       clearInterval(timer);
-
       resultsScreen.classList.add("hidden");
       gameScreen.classList.add("hidden");
       menuScreen.classList.remove("hidden");
-
       motionMessage.textContent =
-        motionEnabled
-          ? "Motion controls are ready."
-          : "";
+        motionEnabled ? "Motion controls are ready." : "";
     }
-    window.addEventListener("orientationchange", () => {
-  setTimeout(() => {
-    if (gameActive) {
-      recalibrateTilt();
-    }
-  }, 300);
-});
 
-if (
-  screen.orientation &&
-  typeof screen.orientation.addEventListener === "function"
-) {
-  screen.orientation.addEventListener("change", () => {
-    setTimeout(() => {
-      if (gameActive) {
-        recalibrateTilt();
-      }
-    }, 300);
-  });
-}
-    
+    window.addEventListener("orientationchange", () => {
+      setTimeout(() => {
+        if (gameActive) {
+          recalibrateTilt();
+        }
+      }, 300);
+    });
+
+    if (
+      screen.orientation &&
+      typeof screen.orientation.addEventListener === "function"
+    ) {
+      screen.orientation.addEventListener("change", () => {
+        setTimeout(() => {
+          if (gameActive) {
+            recalibrateTilt();
+          }
+        }, 300);
+      });
+    }
+
     loadCategories();
   </script>
 </body>
