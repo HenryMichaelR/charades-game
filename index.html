@@ -392,55 +392,10 @@
     </section>
   </main>
 
+  <script src="words.js"></script>
+
   <script>
-    const categories = {
-      Animals: [
-        "Elephant", "Penguin", "Giraffe", "Kangaroo", "Dolphin",
-        "Octopus", "Crocodile", "Flamingo", "Gorilla", "Butterfly",
-        "Shark", "Tiger", "Lion", "Monkey", "Rabbit", "Turtle",
-        "Snake", "Horse", "Zebra", "Owl", "Panda", "Koala", "Wolf",
-        "Fox", "Bear", "Eagle", "Peacock", "Camel", "Hippo", "Rhino"
-      ],
-
-      Movies: [
-        "Titanic", "Avatar", "Frozen", "Shrek", "Jaws", "The Avengers",
-        "Jurassic Park", "Toy Story", "The Lion King", "Finding Nemo",
-        "Spider-Man", "Iron Man", "Black Panther", "The Dark Knight",
-        "Home Alone", "Harry Potter", "The Hunger Games", "Star Wars",
-        "The Matrix", "Ghostbusters", "Barbie", "Oppenheimer",
-        "The Incredibles", "Moana", "Aladdin", "Cars", "Ratatouille",
-        "The Notebook", "Mean Girls", "Interstellar"
-      ],
-
-      "Video Games": [
-        "Minecraft", "Fortnite", "Mario Kart", "Pokémon", "Valorant",
-        "Roblox", "The Sims", "Among Us", "Grand Theft Auto",
-        "Call of Duty", "Super Mario", "The Legend of Zelda", "Overwatch",
-        "Rocket League", "Fall Guys", "Animal Crossing", "Clash of Clans",
-        "Apex Legends", "Terraria", "Wii Sports", "League of Legends",
-        "Marvel Rivals", "Mortal Kombat", "Street Fighter", "Candy Crush",
-        "Plants vs. Zombies", "Red Dead Redemption", "Halo",
-        "Sonic the Hedgehog", "Five Nights at Freddy's"
-      ],
-
-      Marvel: [
-        "Spider-Man", "Iron Man", "Thor", "Hulk", "Black Widow", "Hawkeye",
-        "Captain America", "Black Panther", "Doctor Strange", "Scarlet Witch",
-        "Vision", "Thanos", "Loki", "Deadpool", "Wolverine", "Storm",
-        "Cyclops", "Jean Grey", "Magneto", "Professor X", "Daredevil",
-        "Moon Knight", "Ant-Man", "The Wasp", "Star-Lord", "Groot",
-        "Rocket Raccoon", "Gamora", "Nebula", "Venom"
-      ],
-
-      Disney: [
-        "Mickey Mouse", "Minnie Mouse", "Donald Duck", "Goofy", "Cinderella",
-        "Snow White", "Ariel", "Belle", "Aladdin", "Jasmine", "Simba",
-        "Mufasa", "Elsa", "Anna", "Olaf", "Moana", "Maui", "Stitch",
-        "Peter Pan", "Tinker Bell", "Buzz Lightyear", "Woody",
-        "Lightning McQueen", "Nemo", "Dory", "Winnie the Pooh", "Tigger",
-        "Rapunzel", "Cruella de Vil", "Maleficent"
-      ]
-    };
+    const categories = window.CHARADES_CATEGORIES;
 
     const categorySelect = document.getElementById("categorySelect");
     const timeSelect = document.getElementById("timeSelect");
