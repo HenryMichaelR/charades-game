@@ -164,9 +164,9 @@ s = s.replace(old_show, new_show, 1)
 
 s = s.replace('      roundEndsAt = null;\n      stopRoundTimer();', '      timerStarted = false;\n      stopRoundTimer();')
 
-# Reset the timer state whenever a new game is prepared.
 old_start_state = '''      score = 0;
       timeRemaining = Number(timeSelect.value);
+      roundEndsAt = null;
       currentWord = "";
       gameActive = true;
 '''
@@ -183,7 +183,7 @@ s = s.replace(old_start_state, new_start_state, 1)
 
 if 'roundEndsAt' in s:
     raise SystemExit('roundEndsAt remains after patch')
-if 'setInterval(() => {\n        if (!gameActive || roundEndsAt' in s:
+if 'timer = setInterval' in s:
     raise SystemExit('old interval timer remains')
 
 path.write_text(s, encoding='utf-8')
