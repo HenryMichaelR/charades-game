@@ -1026,7 +1026,6 @@
         gamePhase = "playing";
         gameInstructions.textContent =
           "Tilt screen toward FLOOR = Correct • toward CEILING = Skip";
-        showNextWord();
       }
     }
 
@@ -1149,12 +1148,18 @@
       showAnswerFeedback(wasCorrect);
 
       if (motionEnabled && !testMode) {
+        // Show the next word immediately, but keep motion locked until the
+        // phone returns to centre. This preserves the reset protection without
+        // interrupting the word flow with a separate message screen.
+        showNextWord();
+
+        if (!gameActive) {
+          return;
+        }
+
         gamePhase = "resetting";
-        wordCard.textContent = wasCorrect
-          ? "Correct!\nReturn phone to centre"
-          : "Skipped\nReturn phone to centre";
         gameInstructions.textContent =
-          "Hold the phone facing forward until the next word appears.";
+          "Tilt screen toward FLOOR = Correct • toward CEILING = Skip";
       } else {
         showNextWord();
       }
