@@ -1,0 +1,224 @@
+name: Apply orientation fix
+
+on:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Patch orientation detection
+        shell: bash
+        run: |
+          python <<'PY'
+          from pathlib import Path
+
+          path = Path('index.html')
+          text = path.read_text(encoding='utf-8')
+
+          text = text.replace(
+              '    let timer = null;\n    let countdownTimeout = null;\n    let gameActive = false;\n',
+              '    let timer = null;\n    let countdownTimeout = null;\n    let orientationPollTimer = null;\n    let gameActive = false;\n',
+              1,
+          )
+
+          old_landscape = '''    function isPhoneLandscape() {
+      if (
+        screen.orientation &&
+        typeof screen.orientation.type === "string"
+      ) {
+        return screen.orientation.type.startsWith("landscape");
+      }
+
+      return window.innerWidth > window.innerHeight;
+    }
+'''
+
+          new_landscape = '''    function getViewportDimensions() {
+      const visualWidth = window.visualViewport
+        ? window.visualViewport.width
+        : 0;
+      const visualHeight = window.visualViewport
+        ? window.visualViewport.height
+        : 0;
+      const documentWidth = document.documentElement.clientWidth || 0;
+      const documentHeight = document.documentElement.clientHeight || 0;
+
+      return {
+        width: Math.max(window.innerWidth || 0, visualWidth, documentWidth),
+        height: Math.max(window.innerHeight || 0, visualHeight, documentHeight)
+      };
+    }
+
+    function isPhoneLandscape() {
+      const { width, height } = getViewportDimensions();
+
+      if (width > height * 1.05) {
+        return true;
+      }
+
+      if (height > width * 1.05) {
+        return false;
+      }
+
+      const angle = ((getScreenAngle() % 360) + 360) % 360;
+      return angle === 90 || angle === 270;
+    }
+'''
+
+          if old_landscape not in text:
+              raise SystemExit('Could not find old landscape function')
+          text = text.replace(old_landscape, new_landscape, 1)
+
+          old_start = '''      document.body.classList.toggle("motion-game", motionEnabled);
+      updateOrientationState();
+
+      clearInterval(timer);
+      clearTimeout(countdownTimeout);
+'''
+
+          new_start = '''      document.body.classList.toggle("motion-game", motionEnabled);
+      updateOrientationState();
+
+      clearInterval(timer);
+      clearTimeout(countdownTimeout);
+      clearInterval(orientationPollTimer);
+
+      if (motionEnabled) {
+        orientationPollTimer = setInterval(updateOrientationState, 250);
+      }
+'''
+
+          if old_start not in text:
+              raise SystemExit('Could not find start-game orientation block')
+          text = text.replace(old_start, new_start, 1)
+
+          old_clear = '''      clearInterval(timer);
+      clearTimeout(countdownTimeout);
+
+      document.body.classList.remove("motion-game", "portrait-mode");
+'''
+
+          new_clear = '''      clearInterval(timer);
+      clearTimeout(countdownTimeout);
+      clearInterval(orientationPollTimer);
+
+      document.body.classList.remove("motion-game", "portrait-mode");
+'''
+
+          if text.count(old_clear) < 2:
+              raise SystemExit('Could not find both cleanup blocks')
+          text = text.replace(old_clear, new_clear, 2)
+
+          old_listeners = '''    function handleScreenOrientationChange() {
+      setTimeout(() => {
+        updateOrientationState();
+
+        if (!gameActive || !motionEnabled || !isPhoneLandscape()) {
+          return;
+        }
+
+        if (gamePhase === "playing") {
+          recalibrateTilt();
+        } else if (
+          gamePhase === "calibrating" ||
+          gamePhase === "returning"
+        ) {
+          beginDirectionCalibration();
+        }
+      }, 300);
+    }
+
+    window.addEventListener("orientationchange", handleScreenOrientationChange);
+    window.addEventListener("resize", updateOrientationState);
+
+    if (
+      screen.orientation &&
+      typeof screen.orientation.addEventListener === "function"
+    ) {
+      screen.orientation.addEventListener(
+        "change",
+        handleScreenOrientationChange
+      );
+    }
+'''
+
+          new_listeners = '''    function handleScreenOrientationChange() {
+      [0, 100, 300, 700].forEach((delay) => {
+        setTimeout(() => {
+          updateOrientationState();
+
+          if (!gameActive || !motionEnabled || !isPhoneLandscape()) {
+            return;
+          }
+
+          if (gamePhase === "playing") {
+            recalibrateTilt();
+          } else if (
+            gamePhase === "calibrating" ||
+            gamePhase === "returning"
+          ) {
+            beginDirectionCalibration();
+          }
+        }, delay);
+      });
+    }
+
+    window.addEventListener("orientationchange", handleScreenOrientationChange);
+    window.addEventListener("resize", handleScreenOrientationChange);
+
+    if (window.visualViewport) {
+      window.visualViewport.addEventListener(
+        "resize",
+        handleScreenOrientationChange
+      );
+    }
+
+    const landscapeMediaQuery = window.matchMedia(
+      "(orientation: landscape)"
+    );
+
+    if (typeof landscapeMediaQuery.addEventListener === "function") {
+      landscapeMediaQuery.addEventListener(
+        "change",
+        handleScreenOrientationChange
+      );
+    } else if (typeof landscapeMediaQuery.addListener === "function") {
+      landscapeMediaQuery.addListener(handleScreenOrientationChange);
+    }
+
+    if (
+      screen.orientation &&
+      typeof screen.orientation.addEventListener === "function"
+    ) {
+      screen.orientation.addEventListener(
+        "change",
+        handleScreenOrientationChange
+      );
+    }
+'''
+
+          if old_listeners not in text:
+              raise SystemExit('Could not find orientation listener block')
+          text = text.replace(old_listeners, new_listeners, 1)
+
+          path.write_text(text, encoding='utf-8')
+          Path('.github/workflows/apply-orientation-fix.yml').unlink()
+          PY
+
+      - name: Commit fix
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add index.html .github/workflows/apply-orientation-fix.yml
+          git commit -m "Fix iPhone landscape detection"
+          git push
