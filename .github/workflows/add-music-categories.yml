@@ -1,0 +1,69 @@
+name: Add Music categories
+
+on:
+  push:
+    paths:
+      - ".github/workflows/add-music-categories.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Add Music categories
+        run: python .github/scripts/add_music_categories.py
+
+      - name: Validate JavaScript and category contents
+        run: |
+          node --check words.js
+          python - <<'PY'
+          import json
+          import re
+          from pathlib import Path
+
+          text = Path("words.js").read_text(encoding="utf-8")
+          payload = text.split("window.CHARADES_CATEGORIES = ", 1)[1].strip()
+          categories = json.loads(payload[:-1])
+
+          for name in ["Music", "华语音乐"]:
+              songs = categories[name]
+              normalized = [re.sub(r"[^a-z0-9\u3400-\u9fff]+", "", song.casefold()) for song in songs]
+              assert len(songs) == 300, (name, len(songs))
+              assert len(normalized) == len(set(normalized)), name
+
+          assert all(re.search(r"[\u3400-\u9fff]", song) for song in categories["华语音乐"])
+
+          for required in [
+              "Bohemian Rhapsody", "Billie Jean", "I Want It That Way",
+              "Uptown Funk", "Blinding Lights", "Espresso"
+          ]:
+              assert required in categories["Music"], required
+
+          for required in [
+              "月亮代表我的心", "海阔天空", "吻别", "晴天", "江南",
+              "小幸运", "光年之外", "孤勇者"
+          ]:
+              assert required in categories["华语音乐"], required
+
+          print("Validated 300 Music and 300 华语音乐 titles")
+          PY
+
+      - name: Commit final categories
+        run: |
+          rm -f .github/scripts/add_music_categories.py
+          rm -f .github/workflows/add-music-categories.yml
+          rmdir .github/scripts 2>/dev/null || true
+          rmdir .github/workflows 2>/dev/null || true
+          rmdir .github 2>/dev/null || true
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "Add Music and 华语音乐 categories"
+          git push
