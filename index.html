@@ -448,20 +448,26 @@
     let testMode = false;
 
     let currentTilt = null;
+    let filteredTilt = null;
     let neutralTilt = null;
     let tiltLocked = true;
     let calibrationEndsAt = 0;
     let calibrationBaseTilt = null;
     let lastScreenAngle = null;
     let correctDirection = 1;
+    let answerCooldownEndsAt = 0;
+    let resetStartedAt = null;
 
     let audioContext = null;
     let feedbackTimeout = null;
 
-    const correctTiltAmount = 26;
-    const skipTiltAmount = 26;
-    const calibrationTiltAmount = 18;
-    const neutralZone = 10;
+    const correctTiltAmount = 22;
+    const skipTiltAmount = 22;
+    const calibrationTiltAmount = 16;
+    const neutralZone = 13;
+    const tiltSmoothing = 0.45;
+    const answerCooldownMs = 650;
+    const resetHoldMs = 500;
 
     function loadCategories() {
       categorySelect.innerHTML = "";
@@ -708,8 +714,10 @@
     function beginDirectionCalibration() {
       gamePhase = "calibrating";
       currentTilt = null;
+      filteredTilt = null;
       neutralTilt = null;
       calibrationBaseTilt = null;
+      resetStartedAt = null;
       tiltLocked = true;
       calibrationEndsAt = Date.now() + 1200;
       lastScreenAngle = getScreenAngle();
@@ -843,10 +851,23 @@
 
     function recalibrateTilt() {
       currentTilt = null;
+      filteredTilt = null;
       neutralTilt = null;
+      resetStartedAt = null;
       tiltLocked = true;
       calibrationEndsAt = Date.now() + 700;
       lastScreenAngle = getScreenAngle();
+    }
+
+    function smoothTilt(tiltValue) {
+      if (filteredTilt === null) {
+        filteredTilt = tiltValue;
+      } else {
+        filteredTilt +=
+          (tiltValue - filteredTilt) * tiltSmoothing;
+      }
+
+      return filteredTilt;
     }
 
     function handleCalibrationTilt(tiltValue) {
@@ -907,19 +928,50 @@
         return;
       }
 
-      currentTilt = tiltValue;
+      currentTilt = smoothTilt(tiltValue);
 
       if (gamePhase === "calibrating") {
-        handleCalibrationTilt(tiltValue);
+        handleCalibrationTilt(currentTilt);
         return;
       }
 
       if (gamePhase === "returning") {
         if (
           neutralTilt !== null &&
-          Math.abs(tiltValue - neutralTilt) <= neutralZone
+          Math.abs(currentTilt - neutralTilt) <= neutralZone
         ) {
           beginCountdown();
+        }
+
+        return;
+      }
+
+      if (gamePhase === "resetting") {
+        if (Date.now() < answerCooldownEndsAt) {
+          resetStartedAt = null;
+          return;
+        }
+
+        const resetDifference =
+          (currentTilt - neutralTilt) * correctDirection;
+
+        if (Math.abs(resetDifference) <= neutralZone) {
+          if (resetStartedAt === null) {
+            resetStartedAt = Date.now();
+          }
+
+          if (Date.now() - resetStartedAt >= resetHoldMs) {
+            neutralTilt = currentTilt;
+            filteredTilt = currentTilt;
+            tiltLocked = false;
+            resetStartedAt = null;
+            gamePhase = "playing";
+            gameInstructions.textContent =
+              "Ready — top edge DOWN = Correct • top edge UP = Skip";
+            showNextWord();
+          }
+        } else {
+          resetStartedAt = null;
         }
 
         return;
@@ -964,6 +1016,8 @@
       }
 
       tiltLocked = true;
+      resetStartedAt = null;
+      answerCooldownEndsAt = Date.now() + answerCooldownMs;
       answerWord(wasCorrect);
 
       if ("vibrate" in navigator) {
@@ -990,7 +1044,17 @@
       }
 
       showAnswerFeedback(wasCorrect);
-      showNextWord();
+
+      if (motionEnabled && !testMode) {
+        gamePhase = "resetting";
+        wordCard.textContent = wasCorrect
+          ? "Correct!\nReturn phone to centre"
+          : "Skipped\nReturn phone to centre";
+        gameInstructions.textContent =
+          "Hold the phone facing forward until the next word appears.";
+      } else {
+        showNextWord();
+      }
     }
 
     function showNextWord() {
