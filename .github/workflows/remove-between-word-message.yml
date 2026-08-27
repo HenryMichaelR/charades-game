@@ -1,0 +1,52 @@
+name: Remove between-word message
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - .github/workflows/remove-between-word-message.yml
+      - .github/scripts/remove-between-word-message.py
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Apply seamless word-flow patch
+        run: python .github/scripts/remove-between-word-message.py
+
+      - name: Validate JavaScript
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          text = Path('index.html').read_text(encoding='utf-8')
+          script = text.split('<script>', 1)[1].split('</script>', 1)[0]
+          Path('/tmp/charades.js').write_text(script, encoding='utf-8')
+          PY
+          node --check /tmp/charades.js
+
+      - name: Verify seamless reset behavior
+        shell: bash
+        run: |
+          ! grep -q "Return phone to centre" index.html
+          ! grep -q "Return phone to center" index.html
+          grep -q "gamePhase = \"resetting\"" index.html
+          grep -q "answerArmed = true" index.html
+
+      - name: Commit seamless word flow
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git rm .github/scripts/remove-between-word-message.py
+          git rm .github/workflows/remove-between-word-message.yml
+          git add index.html
+          git commit -m "Show words continuously between tilt answers"
+          git push
