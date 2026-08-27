@@ -1,0 +1,62 @@
+name: Add Chinese Celebrity category
+
+on:
+  push:
+    paths:
+      - ".github/workflows/add-chinese-celebrity.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Add category
+        run: python .github/scripts/add_chinese_celebrity.py
+
+      - name: Validate category
+        run: |
+          node --check words.js
+          python - <<'PY'
+          import json
+          import re
+          from pathlib import Path
+
+          text = Path("words.js").read_text(encoding="utf-8")
+          payload = text.split("window.CHARADES_CATEGORIES = ", 1)[1].strip()
+          categories = json.loads(payload[:-1])
+          names = categories["Chinese Celebrity"]
+
+          assert len(names) == 180, len(names)
+          assert len(names) == len(set(names))
+          assert all(re.search(r"[\u3400-\u4dbf\u4e00-\u9fff]", name) for name in names)
+          assert all(not re.search(r"[A-Za-z]", name) for name in names)
+
+          for required in [
+              "成龙", "周星驰", "刘德华", "梁朝伟", "张国荣",
+              "周杰伦", "蔡依林", "张惠妹", "王菲", "陈奕迅",
+              "张艺谋", "李安", "章子怡", "刘亦菲", "吴京"
+          ]:
+              assert required in names, required
+
+          print("Validated 180 Chinese Celebrity entries")
+          PY
+
+      - name: Commit final category
+        run: |
+          rm -f .github/scripts/add_chinese_celebrity.py
+          rm -f .github/workflows/add-chinese-celebrity.yml
+          rmdir .github/scripts 2>/dev/null || true
+          rmdir .github/workflows 2>/dev/null || true
+          rmdir .github 2>/dev/null || true
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "Add Chinese Celebrity category"
+          git push
