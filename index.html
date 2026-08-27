@@ -8,6 +8,8 @@
   />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="theme-color" content="#2563eb" />
+  <link rel="manifest" href="manifest.webmanifest" />
   <title>Charades</title>
 
   <style>
@@ -148,7 +150,8 @@
       justify-content: center;
       align-items: center;
       text-align: center;
-      font-size: clamp(44px, 9vw, 92px);
+      white-space: pre-line;
+      font-size: clamp(40px, 8vw, 88px);
       font-weight: bold;
       overflow-wrap: anywhere;
       user-select: none;
@@ -168,7 +171,7 @@
 
     .game-instructions {
       margin: 8px 0 0;
-      font-size: 16px;
+      font-size: 17px;
       font-weight: bold;
       color: #4b5563;
     }
@@ -217,6 +220,36 @@
       color: white;
     }
 
+    #orientationGate {
+      display: none;
+      position: fixed;
+      inset: 0;
+      z-index: 9999;
+      padding: 28px;
+      background: #111827;
+      color: white;
+      align-items: center;
+      justify-content: center;
+      flex-direction: column;
+      text-align: center;
+    }
+
+    #orientationGate strong {
+      font-size: 38px;
+    }
+
+    #orientationGate span {
+      max-width: 520px;
+      margin-top: 14px;
+      font-size: 18px;
+      line-height: 1.45;
+      color: #d1d5db;
+    }
+
+    body.motion-game.portrait-mode #orientationGate {
+      display: flex;
+    }
+
     @media screen and (orientation: landscape) {
       body {
         padding: 6px;
@@ -247,13 +280,21 @@
 </head>
 
 <body>
+  <div id="orientationGate" aria-live="assertive">
+    <strong>Rotate your phone sideways</strong>
+    <span>
+      This game only runs horizontally. Your timer is paused until the phone is
+      back in landscape position.
+    </span>
+  </div>
+
   <main class="app">
     <section id="menuScreen">
       <h1>Charades</h1>
 
       <p>
-        Choose a category and turn length. Hold the phone horizontally against
-        your forehead and tilt it to record each answer.
+        Choose a category and turn length. The game will calibrate your Correct
+        gesture before every round, so Skip will always be the opposite tilt.
       </p>
 
       <label for="categorySelect">Category</label>
@@ -289,8 +330,8 @@
       <p id="motionMessage" class="message"></p>
 
       <p class="small-text">
-        On iPhone, open the published HTTPS website in Safari. Turn off silent
-        mode and raise the media volume to hear the answer sounds.
+        For the strongest landscape behavior, add the game to your iPhone Home
+        Screen and launch it from the icon.
       </p>
     </section>
 
@@ -302,8 +343,8 @@
 
       <div id="wordCard" class="word-card">Get Ready</div>
 
-      <p class="game-instructions">
-        Tilt forward for Correct • Tilt backward for Skip
+      <p id="gameInstructions" class="game-instructions">
+        Top edge DOWN = Correct • Top edge UP = Skip
       </p>
 
       <div id="testControls" class="test-controls">
@@ -384,6 +425,7 @@
     const gameScreen = document.getElementById("gameScreen");
     const resultsScreen = document.getElementById("resultsScreen");
     const wordCard = document.getElementById("wordCard");
+    const gameInstructions = document.getElementById("gameInstructions");
     const timeDisplay = document.getElementById("timeRemaining");
     const scoreDisplay = document.getElementById("score");
     const finalScoreDisplay = document.getElementById("finalScore");
@@ -397,7 +439,9 @@
     let score = 0;
     let timeRemaining = 60;
     let timer = null;
+    let countdownTimeout = null;
     let gameActive = false;
+    let gamePhase = "idle";
 
     let motionEnabled = false;
     let testMode = false;
@@ -406,15 +450,17 @@
     let neutralTilt = null;
     let tiltLocked = true;
     let calibrationEndsAt = 0;
+    let calibrationBaseTilt = null;
     let lastScreenAngle = null;
+    let correctDirection = 1;
 
     let audioContext = null;
     let feedbackTimeout = null;
 
-    const correctTiltAmount = 28;
-    const skipTiltAmount = 28;
+    const correctTiltAmount = 26;
+    const skipTiltAmount = 26;
+    const calibrationTiltAmount = 18;
     const neutralZone = 10;
-    const correctDirection = 1;
 
     function loadCategories() {
       categorySelect.innerHTML = "";
@@ -484,7 +530,6 @@
 
       oscillator.type = "sine";
       oscillator.frequency.setValueAtTime(frequency, startTime);
-
       gainNode.gain.setValueAtTime(volume, startTime);
       gainNode.gain.exponentialRampToValueAtTime(
         0.001,
@@ -520,7 +565,6 @@
     function showAnswerFeedback(wasCorrect) {
       clearTimeout(feedbackTimeout);
       wordCard.classList.remove("correct-feedback", "skip-feedback");
-
       void wordCard.offsetWidth;
 
       wordCard.classList.add(
@@ -532,8 +576,25 @@
       }, 280);
     }
 
+    async function requestLandscapeLock() {
+      if (
+        screen.orientation &&
+        typeof screen.orientation.lock === "function"
+      ) {
+        try {
+          await screen.orientation.lock("landscape");
+          return true;
+        } catch (error) {
+          console.info("Landscape lock was not available:", error);
+        }
+      }
+
+      return false;
+    }
+
     async function requestMotionAndStart() {
       initializeAudio();
+      void requestLandscapeLock();
       motionMessage.textContent = "";
 
       try {
@@ -615,8 +676,8 @@
       timeRemaining = Number(timeSelect.value);
       currentWord = "";
       gameActive = true;
+      gamePhase = "setup";
 
-      recalibrateTilt();
       scoreDisplay.textContent = score;
       timeDisplay.textContent = timeRemaining;
 
@@ -625,11 +686,86 @@
       gameScreen.classList.remove("hidden");
       testControls.style.display = testMode ? "flex" : "none";
 
+      document.body.classList.toggle("motion-game", motionEnabled);
+      updateOrientationState();
+
+      clearInterval(timer);
+      clearTimeout(countdownTimeout);
+
+      if (testMode) {
+        beginRound();
+      } else {
+        beginDirectionCalibration();
+      }
+    }
+
+    function beginDirectionCalibration() {
+      gamePhase = "calibrating";
+      currentTilt = null;
+      neutralTilt = null;
+      calibrationBaseTilt = null;
+      tiltLocked = true;
+      calibrationEndsAt = Date.now() + 1200;
+      lastScreenAngle = getScreenAngle();
+
+      wordCard.textContent =
+        "Hold the phone sideways\nagainst your forehead";
+      gameInstructions.textContent =
+        "Keep it still. Then tilt the TOP EDGE DOWN when instructed.";
+    }
+
+    function beginCountdown() {
+      gamePhase = "countdown";
+      let count = 3;
+
+      gameInstructions.textContent =
+        "Top edge DOWN = Correct • Top edge UP = Skip";
+
+      function nextCount() {
+        if (!gameActive || gamePhase !== "countdown") {
+          return;
+        }
+
+        if (!isPhoneLandscape()) {
+          countdownTimeout = setTimeout(nextCount, 250);
+          return;
+        }
+
+        if (count > 0) {
+          wordCard.textContent = String(count);
+          count -= 1;
+          countdownTimeout = setTimeout(nextCount, 750);
+          return;
+        }
+
+        wordCard.textContent = "GO!";
+        countdownTimeout = setTimeout(beginRound, 450);
+      }
+
+      nextCount();
+    }
+
+    function beginRound() {
+      if (!gameActive) {
+        return;
+      }
+
+      gamePhase = "playing";
+      gameInstructions.textContent =
+        testMode
+          ? "Use the test buttons below"
+          : "Top edge DOWN = Correct • Top edge UP = Skip";
+
+      recalibrateTilt();
       showNextWord();
       clearInterval(timer);
 
       timer = setInterval(() => {
-        if (!gameActive) {
+        if (
+          !gameActive ||
+          gamePhase !== "playing" ||
+          (motionEnabled && !isPhoneLandscape())
+        ) {
           return;
         }
 
@@ -658,14 +794,14 @@
     }
 
     function isPhoneLandscape() {
-      const angle = getScreenAngle();
-      const normalizedAngle = ((angle % 360) + 360) % 360;
+      if (
+        screen.orientation &&
+        typeof screen.orientation.type === "string"
+      ) {
+        return screen.orientation.type.startsWith("landscape");
+      }
 
-      return (
-        normalizedAngle === 90 ||
-        normalizedAngle === 270 ||
-        window.innerWidth > window.innerHeight
-      );
+      return window.innerWidth > window.innerHeight;
     }
 
     function getLandscapeTilt(event) {
@@ -683,8 +819,40 @@
       currentTilt = null;
       neutralTilt = null;
       tiltLocked = true;
-      calibrationEndsAt = Date.now() + 1000;
+      calibrationEndsAt = Date.now() + 700;
       lastScreenAngle = getScreenAngle();
+    }
+
+    function handleCalibrationTilt(tiltValue) {
+      if (Date.now() < calibrationEndsAt) {
+        return;
+      }
+
+      if (calibrationBaseTilt === null) {
+        calibrationBaseTilt = tiltValue;
+        wordCard.textContent =
+          "Tilt the TOP EDGE DOWN now\nfor CORRECT";
+        gameInstructions.textContent =
+          "This one movement teaches the game your Correct direction.";
+        return;
+      }
+
+      const difference = tiltValue - calibrationBaseTilt;
+
+      if (Math.abs(difference) < calibrationTiltAmount) {
+        return;
+      }
+
+      correctDirection = difference > 0 ? 1 : -1;
+      neutralTilt = calibrationBaseTilt;
+      gamePhase = "returning";
+
+      playCorrectSound();
+      showAnswerFeedback(true);
+      wordCard.textContent =
+        "Correct direction saved!\nReturn the phone to centre";
+      gameInstructions.textContent =
+        "The opposite direction will be Skip.";
     }
 
     function handleOrientation(event) {
@@ -695,7 +863,15 @@
       const screenAngle = getScreenAngle();
 
       if (screenAngle !== lastScreenAngle) {
-        recalibrateTilt();
+        if (gamePhase === "playing") {
+          recalibrateTilt();
+        } else if (
+          gamePhase === "calibrating" ||
+          gamePhase === "returning"
+        ) {
+          beginDirectionCalibration();
+        }
+
         return;
       }
 
@@ -706,6 +882,26 @@
       }
 
       currentTilt = tiltValue;
+
+      if (gamePhase === "calibrating") {
+        handleCalibrationTilt(tiltValue);
+        return;
+      }
+
+      if (gamePhase === "returning") {
+        if (
+          neutralTilt !== null &&
+          Math.abs(tiltValue - neutralTilt) <= neutralZone
+        ) {
+          beginCountdown();
+        }
+
+        return;
+      }
+
+      if (gamePhase !== "playing") {
+        return;
+      }
 
       if (Date.now() < calibrationEndsAt) {
         return;
@@ -737,7 +933,7 @@
     }
 
     function registerTiltAnswer(wasCorrect) {
-      if (tiltLocked || !gameActive) {
+      if (tiltLocked || !gameActive || gamePhase !== "playing") {
         return;
       }
 
@@ -750,7 +946,7 @@
     }
 
     function answerWord(wasCorrect) {
-      if (!gameActive || !currentWord) {
+      if (!gameActive || gamePhase !== "playing" || !currentWord) {
         return;
       }
 
@@ -772,7 +968,7 @@
     }
 
     function showNextWord() {
-      if (!gameActive) {
+      if (!gameActive || gamePhase !== "playing") {
         return;
       }
 
@@ -791,7 +987,11 @@
       }
 
       gameActive = false;
+      gamePhase = "finished";
       clearInterval(timer);
+      clearTimeout(countdownTimeout);
+
+      document.body.classList.remove("motion-game", "portrait-mode");
       gameScreen.classList.add("hidden");
       resultsScreen.classList.remove("hidden");
       finalScoreDisplay.textContent = score;
@@ -816,7 +1016,11 @@
 
     function returnToMenu() {
       gameActive = false;
+      gamePhase = "idle";
       clearInterval(timer);
+      clearTimeout(countdownTimeout);
+
+      document.body.classList.remove("motion-game", "portrait-mode");
       resultsScreen.classList.add("hidden");
       gameScreen.classList.add("hidden");
       menuScreen.classList.remove("hidden");
@@ -824,25 +1028,46 @@
         motionEnabled ? "Motion controls are ready." : "";
     }
 
-    window.addEventListener("orientationchange", () => {
+    function updateOrientationState() {
+      const portraitBlocked =
+        gameActive && motionEnabled && !isPhoneLandscape();
+
+      document.body.classList.toggle(
+        "portrait-mode",
+        portraitBlocked
+      );
+    }
+
+    function handleScreenOrientationChange() {
       setTimeout(() => {
-        if (gameActive) {
+        updateOrientationState();
+
+        if (!gameActive || !motionEnabled || !isPhoneLandscape()) {
+          return;
+        }
+
+        if (gamePhase === "playing") {
           recalibrateTilt();
+        } else if (
+          gamePhase === "calibrating" ||
+          gamePhase === "returning"
+        ) {
+          beginDirectionCalibration();
         }
       }, 300);
-    });
+    }
+
+    window.addEventListener("orientationchange", handleScreenOrientationChange);
+    window.addEventListener("resize", updateOrientationState);
 
     if (
       screen.orientation &&
       typeof screen.orientation.addEventListener === "function"
     ) {
-      screen.orientation.addEventListener("change", () => {
-        setTimeout(() => {
-          if (gameActive) {
-            recalibrateTilt();
-          }
-        }, 300);
-      });
+      screen.orientation.addEventListener(
+        "change",
+        handleScreenOrientationChange
+      );
     }
 
     loadCategories();
