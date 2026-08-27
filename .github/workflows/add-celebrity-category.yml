@@ -1,0 +1,72 @@
+name: Add Celebrity category
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/add-celebrity-category.yml
+      - .github/scripts/add_celebrity_category.py
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Add Celebrity word bank
+        run: python .github/scripts/add_celebrity_category.py
+
+      - name: Validate word banks
+        shell: bash
+        run: |
+          node --check words.js
+          node - <<'JS'
+          const fs = require('fs');
+          const vm = require('vm');
+          const context = { window: {} };
+          vm.createContext(context);
+          vm.runInContext(fs.readFileSync('words.js', 'utf8'), context);
+          const banks = context.window.CHARADES_CATEGORIES;
+          const expected = [
+            'Animals', 'Movies', 'Video Games', 'Marvel', 'Disney', 'Celebrity'
+          ];
+          if (JSON.stringify(Object.keys(banks)) !== JSON.stringify(expected)) {
+            throw new Error(`Unexpected category order: ${Object.keys(banks)}`);
+          }
+          for (const [name, words] of Object.entries(banks)) {
+            if (words.length !== 500) throw new Error(`${name}: ${words.length}`);
+            const normalized = words.map(word =>
+              word.toLowerCase().replace(/[^a-z0-9]+/g, '')
+            );
+            if (new Set(normalized).size !== 500) {
+              throw new Error(`${name} contains duplicates`);
+            }
+          }
+          const celebrities = banks.Celebrity;
+          const required = [
+            'Tom Hanks', 'Leonardo DiCaprio', 'Emma Stone', 'Meryl Streep',
+            'Taylor Swift', 'Beyoncé', 'Michael Jackson', 'Elvis Presley'
+          ];
+          for (const name of required) {
+            if (!celebrities.includes(name)) throw new Error(`Missing ${name}`);
+          }
+          console.log(Object.fromEntries(
+            Object.entries(banks).map(([name, words]) => [name, words.length])
+          ));
+          console.log('Celebrity sample:', celebrities.slice(0, 20));
+          JS
+
+      - name: Commit Celebrity category
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          rm -f .github/scripts/add_celebrity_category.py
+          rm -f .github/workflows/add-celebrity-category.yml
+          git add -A
+          git commit -m "Add 500-name Celebrity category"
+          git push
