@@ -293,8 +293,8 @@
       <h1>Charades</h1>
 
       <p>
-        Choose a category and turn length. The game will calibrate your Correct
-        gesture before every round, so Skip will always be the opposite tilt.
+        Choose a category and turn length. Tilt the phone down for Correct and
+        tilt it up for Skip. No gesture recording is required.
       </p>
 
       <label for="categorySelect">Category</label>
@@ -344,7 +344,7 @@
       <div id="wordCard" class="word-card">Get Ready</div>
 
       <p id="gameInstructions" class="game-instructions">
-        Saved motion = Correct • Opposite motion = Skip
+        Tilt DOWN = Correct • Tilt UP = Skip
       </p>
 
       <div id="testControls" class="test-controls">
@@ -447,35 +447,28 @@
     let motionEnabled = false;
     let testMode = false;
 
-    let filteredBeta = null;
-    let filteredGamma = null;
-    let neutralAxes = null;
-    let calibrationBaseAxes = null;
-    let correctGesture = null;
-    let skipGesture = null;
-    let lastScreenAngle = null;
-    let answerArmed = false;
-    let calibrationEndsAt = 0;
-    let answerCooldownEndsAt = 0;
-    let centreReferenceAxes = null;
+    let filteredPitch = null;
+    let neutralPitch = null;
+    let centreReferencePitch = null;
     let centreStableSince = null;
-    let gestureCandidate = null;
-    let gestureCandidateSince = null;
-    let gesturePeak = null;
+    let gestureDirection = 0;
+    let gestureStartedAt = null;
+    let answerArmed = false;
+    let answerCooldownEndsAt = 0;
+    let lastScreenAngle = null;
+    let resumeCurrentWordAfterCentre = false;
 
     let audioContext = null;
     let feedbackTimeout = null;
 
-    const gestureThreshold = 24;
-    const neutralRadius = 9;
-    const centreStabilityRadius = 3.5;
-    const tiltSmoothing = 0.32;
-    const answerCooldownMs = 650;
-    const centreHoldMs = 700;
-    const gestureHoldMs = 240;
-    const gestureDirectionConsistency = 0.9;
-    const minimumGestureMatch = 0.5;
-    const maximumSameDirectionScore = 0.25;
+    const tiltThreshold = 24;
+    const returnToCentreZone = 11;
+    const centreStabilityRadius = 2.5;
+    const tiltSmoothing = 0.28;
+    const answerCooldownMs = 550;
+    const centreHoldMs = 500;
+    const gestureHoldMs = 180;
+    const standardCorrectDirection = 1;
 
     function loadCategories() {
       categorySelect.innerHTML = "";
@@ -715,33 +708,17 @@
       if (testMode) {
         beginRound();
       } else {
-        beginDirectionCalibration();
+        beginCountdown();
       }
     }
 
-    function resetSensorFilters() {
-      filteredBeta = null;
-      filteredGamma = null;
-    }
-
-    function beginDirectionCalibration() {
-      gamePhase = "calibration-centre";
-      resetSensorFilters();
-      neutralAxes = null;
-      calibrationBaseAxes = null;
-      correctGesture = null;
-      skipGesture = null;
-      answerArmed = false;
-      centreReferenceAxes = null;
+    function resetMotionState() {
+      filteredPitch = null;
+      centreReferencePitch = null;
       centreStableSince = null;
-      resetGestureCandidate();
-      calibrationEndsAt = Date.now() + 400;
-      lastScreenAngle = getScreenAngle();
-
-      wordCard.textContent =
-        "Hold the phone sideways\nand facing forward";
-      gameInstructions.textContent =
-        "Keep it completely still until the Correct instruction appears.";
+      gestureDirection = 0;
+      gestureStartedAt = null;
+      answerArmed = false;
     }
 
     function beginCountdown() {
@@ -749,7 +726,7 @@
       let count = 3;
 
       gameInstructions.textContent =
-        "Use the two motions you just demonstrated.";
+        "Tilt DOWN = Correct • Tilt UP = Skip";
 
       function nextCount() {
         if (!gameActive || gamePhase !== "countdown") {
@@ -780,11 +757,8 @@
         return;
       }
 
-      resetSensorFilters();
-      neutralAxes = null;
-      centreReferenceAxes = null;
-      centreStableSince = null;
-      resetGestureCandidate();
+      clearInterval(timer);
+      resetMotionState();
       lastScreenAngle = getScreenAngle();
 
       if (testMode) {
@@ -793,14 +767,8 @@
         gameInstructions.textContent = "Use the test buttons below";
         showNextWord();
       } else {
-        gamePhase = "round-centre";
-        answerArmed = false;
-        wordCard.textContent = "Hold phone facing forward";
-        gameInstructions.textContent =
-          "Keep it still. The first word appears after the centre is stable.";
+        beginAutomaticCentering(false);
       }
-
-      clearInterval(timer);
 
       timer = setInterval(() => {
         if (
@@ -866,7 +834,7 @@
       return angle === 90 || angle === 270;
     }
 
-    function getSensorAxes(event) {
+    function getScreenRelativePitch(event) {
       const beta = Number.isFinite(event.beta) ? event.beta : null;
       const gamma = Number.isFinite(event.gamma) ? event.gamma : null;
 
@@ -874,95 +842,67 @@
         return null;
       }
 
-      return { beta, gamma };
-    }
+      const angle = ((getScreenAngle() % 360) + 360) % 360;
 
-    function smoothAxis(previousValue, nextValue) {
-      if (previousValue === null) {
-        return nextValue;
+      if (angle === 90) {
+        return gamma;
       }
 
-      return previousValue +
-        (nextValue - previousValue) * tiltSmoothing;
-    }
-
-    function smoothSensorAxes(axes) {
-      filteredBeta = smoothAxis(filteredBeta, axes.beta);
-      filteredGamma = smoothAxis(filteredGamma, axes.gamma);
-
-      return {
-        beta: filteredBeta,
-        gamma: filteredGamma
-      };
-    }
-
-    function angleDifference(value, baseValue) {
-      let difference = value - baseValue;
-
-      while (difference > 180) {
-        difference -= 360;
+      if (angle === 270) {
+        return -gamma;
       }
 
-      while (difference < -180) {
-        difference += 360;
+      if (angle === 180) {
+        return -beta;
       }
 
-      return difference;
+      return beta;
     }
 
-    function getDisplacement(axes, baseAxes) {
-      return {
-        beta: angleDifference(axes.beta, baseAxes.beta),
-        gamma: axes.gamma - baseAxes.gamma
-      };
-    }
-
-    function vectorMagnitude(vector) {
-      return Math.hypot(vector.beta, vector.gamma);
-    }
-
-    function normalizeVector(vector) {
-      const magnitude = vectorMagnitude(vector);
-
-      if (magnitude === 0) {
-        return null;
+    function smoothPitch(nextPitch) {
+      if (filteredPitch === null) {
+        filteredPitch = nextPitch;
+      } else {
+        filteredPitch +=
+          (nextPitch - filteredPitch) * tiltSmoothing;
       }
 
-      return {
-        beta: vector.beta / magnitude,
-        gamma: vector.gamma / magnitude
-      };
+      return filteredPitch;
     }
 
-    function vectorDot(first, second) {
-      return first.beta * second.beta + first.gamma * second.gamma;
+    function resetGestureHold() {
+      gestureDirection = 0;
+      gestureStartedAt = null;
     }
 
-    function isNearCentre(axes, baseAxes, radius = neutralRadius) {
-      return vectorMagnitude(getDisplacement(axes, baseAxes)) <= radius;
+    function beginAutomaticCentering(resumeCurrentWord) {
+      gamePhase = "centering";
+      answerArmed = false;
+      resumeCurrentWordAfterCentre = resumeCurrentWord;
+      filteredPitch = null;
+      neutralPitch = null;
+      centreReferencePitch = null;
+      centreStableSince = null;
+      resetGestureHold();
+
+      wordCard.textContent = "Hold phone facing forward";
+      gameInstructions.textContent =
+        "Keep it still briefly. No gesture recording is happening.";
     }
 
-    function resetGestureCandidate() {
-      gestureCandidate = null;
-      gestureCandidateSince = null;
-      gesturePeak = null;
-    }
-
-    function updateStableCentre(axes, onReady) {
+    function updateAutomaticCentering(pitch) {
       const now = Date.now();
 
-      if (centreReferenceAxes === null) {
-        centreReferenceAxes = { ...axes };
+      if (centreReferencePitch === null) {
+        centreReferencePitch = pitch;
         centreStableSince = now;
         return;
       }
 
-      const movement = vectorMagnitude(
-        getDisplacement(axes, centreReferenceAxes)
-      );
-
-      if (movement > centreStabilityRadius) {
-        centreReferenceAxes = { ...axes };
+      if (
+        Math.abs(pitch - centreReferencePitch) > centreStabilityRadius
+      ) {
+        centreReferencePitch = pitch;
         centreStableSince = now;
         return;
       }
@@ -971,17 +911,35 @@
         centreStableSince !== null &&
         now - centreStableSince >= centreHoldMs
       ) {
-        const stableAxes = { ...axes };
-        centreReferenceAxes = null;
+        neutralPitch = pitch;
+        filteredPitch = pitch;
+        centreReferencePitch = null;
         centreStableSince = null;
-        onReady(stableAxes);
+        answerArmed = true;
+        gamePhase = "playing";
+        gameInstructions.textContent =
+          "Tilt DOWN = Correct • Tilt UP = Skip";
+
+        if (resumeCurrentWordAfterCentre && currentWord) {
+          wordCard.textContent = currentWord;
+        } else {
+          showNextWord();
+        }
       }
     }
 
-    function holdAtRecordedCentre(axes, baseAxes, onReady) {
+    function updateResetToCentre(pitch) {
       const now = Date.now();
 
-      if (!isNearCentre(axes, baseAxes)) {
+      if (Date.now() < answerCooldownEndsAt) {
+        centreStableSince = null;
+        return;
+      }
+
+      if (
+        neutralPitch === null ||
+        Math.abs(pitch - neutralPitch) > returnToCentreZone
+      ) {
         centreStableSince = null;
         return;
       }
@@ -992,170 +950,60 @@
       }
 
       if (now - centreStableSince >= centreHoldMs) {
+        neutralPitch = pitch;
+        filteredPitch = pitch;
         centreStableSince = null;
-        onReady({ ...axes });
+        resetGestureHold();
+        answerArmed = true;
+        gamePhase = "playing";
+        gameInstructions.textContent =
+          "Tilt DOWN = Correct • Tilt UP = Skip";
+        showNextWord();
       }
     }
 
-    function trackDeliberateGesture(displacement) {
-      const magnitude = vectorMagnitude(displacement);
-
-      if (magnitude < gestureThreshold) {
-        resetGestureCandidate();
-        return null;
+    function handlePlayingTilt(pitch) {
+      if (!answerArmed || neutralPitch === null) {
+        return;
       }
 
-      const direction = normalizeVector(displacement);
+      const difference = pitch - neutralPitch;
+
+      if (Math.abs(difference) <= returnToCentreZone) {
+        resetGestureHold();
+        neutralPitch += difference * 0.025;
+        return;
+      }
+
+      let direction = 0;
+
+      if (difference >= tiltThreshold) {
+        direction = 1;
+      } else if (difference <= -tiltThreshold) {
+        direction = -1;
+      }
+
+      if (direction === 0) {
+        resetGestureHold();
+        return;
+      }
+
       const now = Date.now();
 
-      if (direction === null) {
-        resetGestureCandidate();
-        return null;
+      if (direction !== gestureDirection) {
+        gestureDirection = direction;
+        gestureStartedAt = now;
+        return;
       }
 
       if (
-        gestureCandidate === null ||
-        vectorDot(direction, gestureCandidate) < gestureDirectionConsistency
+        gestureStartedAt !== null &&
+        now - gestureStartedAt >= gestureHoldMs
       ) {
-        gestureCandidate = direction;
-        gestureCandidateSince = now;
-        gesturePeak = { ...displacement };
-        return null;
+        const wasCorrect = direction === standardCorrectDirection;
+        resetGestureHold();
+        registerTiltAnswer(wasCorrect);
       }
-
-      if (
-        gesturePeak === null ||
-        magnitude > vectorMagnitude(gesturePeak)
-      ) {
-        gesturePeak = { ...displacement };
-      }
-
-      if (now - gestureCandidateSince < gestureHoldMs) {
-        return null;
-      }
-
-      const result = normalizeVector(gesturePeak);
-      resetGestureCandidate();
-      return result;
-    }
-
-    function handleCalibration(axes) {
-      if (gamePhase === "calibration-centre") {
-        if (Date.now() < calibrationEndsAt) {
-          return;
-        }
-
-        updateStableCentre(axes, (stableAxes) => {
-          calibrationBaseAxes = stableAxes;
-          gamePhase = "calibration-correct";
-          resetGestureCandidate();
-          wordCard.textContent =
-            "Do your CORRECT motion now";
-          gameInstructions.textContent =
-            "Make one clear tilt and hold it briefly.";
-        });
-        return;
-      }
-
-      if (gamePhase === "calibration-correct") {
-        const displacement = getDisplacement(axes, calibrationBaseAxes);
-        const recordedGesture = trackDeliberateGesture(displacement);
-
-        if (recordedGesture === null) {
-          return;
-        }
-
-        correctGesture = recordedGesture;
-        gamePhase = "return-after-correct";
-        centreStableSince = null;
-        playCorrectSound();
-        showAnswerFeedback(true);
-        wordCard.textContent =
-          "Correct saved!\\nReturn phone to centre";
-        gameInstructions.textContent =
-          "Hold it facing forward and still.";
-        return;
-      }
-
-      if (gamePhase === "return-after-correct") {
-        holdAtRecordedCentre(axes, calibrationBaseAxes, (stableAxes) => {
-          calibrationBaseAxes = stableAxes;
-          gamePhase = "calibration-skip";
-          resetGestureCandidate();
-          wordCard.textContent =
-            "Do your SKIP motion now";
-          gameInstructions.textContent =
-            "Make one clear tilt in a different direction and hold it briefly.";
-        });
-        return;
-      }
-
-      if (gamePhase === "calibration-skip") {
-        const displacement = getDisplacement(axes, calibrationBaseAxes);
-        const candidateSkip = trackDeliberateGesture(displacement);
-
-        if (candidateSkip === null) {
-          return;
-        }
-
-        const sameDirectionScore = vectorDot(correctGesture, candidateSkip);
-
-        if (sameDirectionScore > maximumSameDirectionScore) {
-          gamePhase = "retry-skip-centre";
-          centreStableSince = null;
-          wordCard.textContent =
-            "That looked too similar\\nReturn to centre";
-          gameInstructions.textContent =
-            "Then demonstrate a clearly different Skip motion.";
-          return;
-        }
-
-        skipGesture = candidateSkip;
-        gamePhase = "return-after-skip";
-        centreStableSince = null;
-        playSkipSound();
-        showAnswerFeedback(false);
-        wordCard.textContent =
-          "Skip saved!\\nReturn phone to centre";
-        gameInstructions.textContent =
-          "Hold it facing forward and still to begin.";
-        return;
-      }
-
-      if (gamePhase === "retry-skip-centre") {
-        holdAtRecordedCentre(axes, calibrationBaseAxes, (stableAxes) => {
-          calibrationBaseAxes = stableAxes;
-          gamePhase = "calibration-skip";
-          resetGestureCandidate();
-          wordCard.textContent =
-            "Do your SKIP motion now";
-          gameInstructions.textContent =
-            "Use a clearly different direction from Correct.";
-        });
-        return;
-      }
-
-      if (gamePhase === "return-after-skip") {
-        holdAtRecordedCentre(axes, calibrationBaseAxes, () => {
-          beginCountdown();
-        });
-      }
-    }
-
-    function classifyGesture(direction) {
-      if (!direction || !correctGesture || !skipGesture) {
-        return null;
-      }
-
-      const correctScore = vectorDot(direction, correctGesture);
-      const skipScore = vectorDot(direction, skipGesture);
-      const bestScore = Math.max(correctScore, skipScore);
-
-      if (bestScore < minimumGestureMatch) {
-        return null;
-      }
-
-      return correctScore > skipScore;
     }
 
     function handleOrientation(event) {
@@ -1166,83 +1014,31 @@
       const screenAngle = getScreenAngle();
 
       if (screenAngle !== lastScreenAngle) {
-        beginDirectionCalibration();
+        lastScreenAngle = screenAngle;
+        beginAutomaticCentering(Boolean(currentWord));
         return;
       }
 
-      const sensorAxes = getSensorAxes(event);
+      const rawPitch = getScreenRelativePitch(event);
 
-      if (sensorAxes === null) {
+      if (rawPitch === null) {
         return;
       }
 
-      const axes = smoothSensorAxes(sensorAxes);
+      const pitch = smoothPitch(rawPitch);
 
-      if (
-        gamePhase.startsWith("calibration-") ||
-        gamePhase.startsWith("return-after-") ||
-        gamePhase === "retry-skip-centre"
-      ) {
-        handleCalibration(axes);
-        return;
-      }
-
-      if (gamePhase === "round-centre") {
-        updateStableCentre(axes, (stableAxes) => {
-          neutralAxes = stableAxes;
-          answerArmed = true;
-          gamePhase = "playing";
-          resetGestureCandidate();
-          gameInstructions.textContent =
-            "Use your saved Correct and Skip motions.";
-          showNextWord();
-        });
+      if (gamePhase === "centering") {
+        updateAutomaticCentering(pitch);
         return;
       }
 
       if (gamePhase === "resetting") {
-        if (Date.now() < answerCooldownEndsAt) {
-          centreReferenceAxes = null;
-          centreStableSince = null;
-          return;
-        }
-
-        updateStableCentre(axes, (stableAxes) => {
-          neutralAxes = stableAxes;
-          filteredBeta = stableAxes.beta;
-          filteredGamma = stableAxes.gamma;
-          answerArmed = true;
-          gamePhase = "playing";
-          resetGestureCandidate();
-          gameInstructions.textContent =
-            "Ready — use your saved Correct and Skip motions.";
-          showNextWord();
-        });
+        updateResetToCentre(pitch);
         return;
       }
 
-      if (gamePhase !== "playing" || !answerArmed) {
-        return;
-      }
-
-      const displacement = getDisplacement(axes, neutralAxes);
-      const magnitude = vectorMagnitude(displacement);
-
-      if (magnitude <= neutralRadius) {
-        resetGestureCandidate();
-        return;
-      }
-
-      const deliberateDirection = trackDeliberateGesture(displacement);
-
-      if (deliberateDirection === null) {
-        return;
-      }
-
-      const classification = classifyGesture(deliberateDirection);
-
-      if (classification !== null) {
-        registerTiltAnswer(classification);
+      if (gamePhase === "playing") {
+        handlePlayingTilt(pitch);
       }
     }
 
@@ -1252,9 +1048,8 @@
       }
 
       answerArmed = false;
-      centreReferenceAxes = null;
       centreStableSince = null;
-      resetGestureCandidate();
+      resetGestureHold();
       answerCooldownEndsAt = Date.now() + answerCooldownMs;
       answerWord(wasCorrect);
 
@@ -1380,9 +1175,11 @@
           if (
             gamePhase !== "idle" &&
             gamePhase !== "finished" &&
-            gamePhase !== "setup"
+            gamePhase !== "setup" &&
+            gamePhase !== "countdown"
           ) {
-            beginDirectionCalibration();
+            lastScreenAngle = getScreenAngle();
+            beginAutomaticCentering(Boolean(currentWord));
           }
         }, delay);
       });
