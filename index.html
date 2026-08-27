@@ -439,6 +439,7 @@
     let score = 0;
     let timeRemaining = 60;
     let timer = null;
+    let roundEndsAt = null;
     let countdownTimeout = null;
     let orientationPollTimer = null;
     let gameActive = false;
@@ -682,6 +683,7 @@
       results = [];
       score = 0;
       timeRemaining = Number(timeSelect.value);
+      roundEndsAt = null;
       currentWord = "";
       gameActive = true;
       gamePhase = "setup";
@@ -771,21 +773,25 @@
       }
 
       timer = setInterval(() => {
-        if (
-          !gameActive ||
-          !currentWord ||
-          (motionEnabled && !isPhoneLandscape())
-        ) {
+        if (!gameActive || roundEndsAt === null) {
           return;
         }
 
-        timeRemaining -= 1;
-        timeDisplay.textContent = timeRemaining;
+        const millisecondsRemaining = roundEndsAt - Date.now();
+        const nextTimeRemaining = Math.max(
+          0,
+          Math.ceil(millisecondsRemaining / 1000)
+        );
 
-        if (timeRemaining <= 0) {
+        if (nextTimeRemaining !== timeRemaining) {
+          timeRemaining = nextTimeRemaining;
+          timeDisplay.textContent = timeRemaining;
+        }
+
+        if (millisecondsRemaining <= 0) {
           finishGame();
         }
-      }, 1000);
+      }, 200);
     }
 
     function getScreenAngle() {
@@ -1121,6 +1127,10 @@
 
       currentWord = availableWords.shift();
       wordCard.textContent = currentWord;
+
+      if (roundEndsAt === null) {
+        roundEndsAt = Date.now() + timeRemaining * 1000;
+      }
     }
 
     function finishGame() {
@@ -1130,6 +1140,7 @@
 
       gameActive = false;
       gamePhase = "finished";
+      roundEndsAt = null;
       clearInterval(timer);
       clearTimeout(countdownTimeout);
       clearInterval(orientationPollTimer);
