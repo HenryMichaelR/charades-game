@@ -440,6 +440,7 @@
     let timeRemaining = 60;
     let timer = null;
     let countdownTimeout = null;
+    let orientationPollTimer = null;
     let gameActive = false;
     let gamePhase = "idle";
 
@@ -691,6 +692,11 @@
 
       clearInterval(timer);
       clearTimeout(countdownTimeout);
+      clearInterval(orientationPollTimer);
+
+      if (motionEnabled) {
+        orientationPollTimer = setInterval(updateOrientationState, 250);
+      }
 
       if (testMode) {
         beginRound();
@@ -793,15 +799,35 @@
       return window.innerWidth > window.innerHeight ? 90 : 0;
     }
 
+    function getViewportDimensions() {
+      const visualWidth = window.visualViewport
+        ? window.visualViewport.width
+        : 0;
+      const visualHeight = window.visualViewport
+        ? window.visualViewport.height
+        : 0;
+      const documentWidth = document.documentElement.clientWidth || 0;
+      const documentHeight = document.documentElement.clientHeight || 0;
+
+      return {
+        width: Math.max(window.innerWidth || 0, visualWidth, documentWidth),
+        height: Math.max(window.innerHeight || 0, visualHeight, documentHeight)
+      };
+    }
+
     function isPhoneLandscape() {
-      if (
-        screen.orientation &&
-        typeof screen.orientation.type === "string"
-      ) {
-        return screen.orientation.type.startsWith("landscape");
+      const { width, height } = getViewportDimensions();
+
+      if (width > height * 1.05) {
+        return true;
       }
 
-      return window.innerWidth > window.innerHeight;
+      if (height > width * 1.05) {
+        return false;
+      }
+
+      const angle = ((getScreenAngle() % 360) + 360) % 360;
+      return angle === 90 || angle === 270;
     }
 
     function getLandscapeTilt(event) {
@@ -990,6 +1016,7 @@
       gamePhase = "finished";
       clearInterval(timer);
       clearTimeout(countdownTimeout);
+      clearInterval(orientationPollTimer);
 
       document.body.classList.remove("motion-game", "portrait-mode");
       gameScreen.classList.add("hidden");
@@ -1019,6 +1046,7 @@
       gamePhase = "idle";
       clearInterval(timer);
       clearTimeout(countdownTimeout);
+      clearInterval(orientationPollTimer);
 
       document.body.classList.remove("motion-game", "portrait-mode");
       resultsScreen.classList.add("hidden");
@@ -1039,26 +1067,48 @@
     }
 
     function handleScreenOrientationChange() {
-      setTimeout(() => {
-        updateOrientationState();
+      [0, 100, 300, 700].forEach((delay) => {
+        setTimeout(() => {
+          updateOrientationState();
 
-        if (!gameActive || !motionEnabled || !isPhoneLandscape()) {
-          return;
-        }
+          if (!gameActive || !motionEnabled || !isPhoneLandscape()) {
+            return;
+          }
 
-        if (gamePhase === "playing") {
-          recalibrateTilt();
-        } else if (
-          gamePhase === "calibrating" ||
-          gamePhase === "returning"
-        ) {
-          beginDirectionCalibration();
-        }
-      }, 300);
+          if (gamePhase === "playing") {
+            recalibrateTilt();
+          } else if (
+            gamePhase === "calibrating" ||
+            gamePhase === "returning"
+          ) {
+            beginDirectionCalibration();
+          }
+        }, delay);
+      });
     }
 
     window.addEventListener("orientationchange", handleScreenOrientationChange);
-    window.addEventListener("resize", updateOrientationState);
+    window.addEventListener("resize", handleScreenOrientationChange);
+
+    if (window.visualViewport) {
+      window.visualViewport.addEventListener(
+        "resize",
+        handleScreenOrientationChange
+      );
+    }
+
+    const landscapeMediaQuery = window.matchMedia(
+      "(orientation: landscape)"
+    );
+
+    if (typeof landscapeMediaQuery.addEventListener === "function") {
+      landscapeMediaQuery.addEventListener(
+        "change",
+        handleScreenOrientationChange
+      );
+    } else if (typeof landscapeMediaQuery.addListener === "function") {
+      landscapeMediaQuery.addListener(handleScreenOrientationChange);
+    }
 
     if (
       screen.orientation &&
