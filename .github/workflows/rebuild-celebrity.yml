@@ -1,0 +1,67 @@
+name: Rebuild recognizable Celebrity category
+
+on:
+  push:
+    paths:
+      - ".github/workflows/rebuild-celebrity.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  rebuild:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Replace Celebrity word bank
+        run: python .github/scripts/rebuild_celebrity.py
+
+      - name: Validate word bank
+        run: |
+          node --check words.js
+          python - <<'PY'
+          import json
+          import re
+          from pathlib import Path
+
+          text = Path("words.js").read_text(encoding="utf-8")
+          payload = text.split("window.CHARADES_CATEGORIES = ", 1)[1].strip()
+          categories = json.loads(payload[:-1])
+          names = categories["Celebrity"]
+          normalized = [re.sub(r"[^a-z0-9]+", "", name.casefold()) for name in names]
+
+          assert len(names) == 250, len(names)
+          assert len(normalized) == len(set(normalized))
+          assert names[:5] == [
+              "Tom Hanks",
+              "Leonardo DiCaprio",
+              "Brad Pitt",
+              "Johnny Depp",
+              "Robert Downey Jr.",
+          ]
+          for required in [
+              "Tom Holland", "Zendaya", "Emma Watson", "Taylor Swift",
+              "Beyoncé", "Michael Jackson", "Drake", "The Weeknd",
+              "Justin Bieber", "Billie Eilish"
+          ]:
+              assert required in names, required
+
+          print("Validated 250 recognizable celebrity names")
+          PY
+
+      - name: Commit final word bank
+        run: |
+          rm -f .github/scripts/rebuild_celebrity.py
+          rm -f .github/workflows/rebuild-celebrity.yml
+          rmdir .github/scripts 2>/dev/null || true
+          rmdir .github/workflows 2>/dev/null || true
+          rmdir .github 2>/dev/null || true
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "Replace Celebrity list with household names"
+          git push
