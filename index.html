@@ -583,14 +583,20 @@
     let motionEnabled = false;
     let testMode = false;
 
-    let currentBeta = null;
-    let neutralBeta = null;
-    let tiltLocked = false;
+    let currentTilt = null;
+    let neutralTilt = null;
+    let tiltLocked = true;
+    let calibrationEndsAt = 0;
+    let lastScreenAngle = null;
 
-    const correctTiltAmount = 35;
-    const skipTiltAmount = 35;
-    const neutralZone = 15;
-    const tiltCooldown = 800;
+    const correctTiltAmount = 28;
+    const skipTiltAmount = 28;
+    const neutralZone = 10;
+
+/*
+  Change this to -1 if Correct and Skip are reversed.
+*/
+const correctDirection = 1;
 
     function loadCategories() {
       categorySelect.innerHTML = "";
@@ -734,9 +740,7 @@
       currentWord = "";
       gameActive = true;
 
-      currentBeta = null;
-      neutralBeta = null;
-      tiltLocked = false;
+      recalibrateTilt();
 
       scoreDisplay.textContent = score;
       timeDisplay.textContent = timeRemaining;
@@ -769,62 +773,152 @@
       }, 1000);
     }
 
-    function handleOrientation(event) {
-      if (!motionEnabled || !gameActive) {
-        return;
-      }
+    function getScreenAngle() {
+  if (
+    screen.orientation &&
+    typeof screen.orientation.angle === "number"
+  ) {
+    return screen.orientation.angle;
+  }
 
-      if (event.beta === null) {
-        return;
-      }
+  if (typeof window.orientation === "number") {
+    return window.orientation;
+  }
 
-      currentBeta = event.beta;
+  /*
+    Fallback for browsers that do not report an angle.
+  */
+  return window.innerWidth > window.innerHeight ? 90 : 0;
+}
 
-      if (neutralBeta === null) {
-        neutralBeta = currentBeta;
-        return;
-      }
+function isPhoneLandscape() {
+  const angle = getScreenAngle();
+  const normalizedAngle =
+    ((angle % 360) + 360) % 360;
 
-      const difference =
-        currentBeta - neutralBeta;
+  return (
+    normalizedAngle === 90 ||
+    normalizedAngle === 270 ||
+    window.innerWidth > window.innerHeight
+  );
+}
 
-      if (tiltLocked) {
-        if (Math.abs(difference) <= neutralZone) {
-          tiltLocked = false;
-          neutralBeta = currentBeta;
-        }
+function getLandscapeTilt(event) {
+  if (event.gamma === null) {
+    return null;
+  }
 
-        return;
-      }
+  const angle = getScreenAngle();
+  const normalizedAngle =
+    ((angle % 360) + 360) % 360;
 
-      if (difference >= correctTiltAmount) {
-        registerTiltAnswer(true);
-      } else if (difference <= -skipTiltAmount) {
-        registerTiltAnswer(false);
-      }
+  /*
+    Reverse gamma when the phone is rotated toward
+    the opposite landscape direction. This keeps the
+    physical tilt direction consistent.
+  */
+  if (normalizedAngle === 270) {
+    return -event.gamma;
+  }
+
+  return event.gamma;
+}
+
+function recalibrateTilt() {
+  currentTilt = null;
+  neutralTilt = null;
+  tiltLocked = true;
+
+  /*
+    Ignore movement briefly while the player positions
+    the horizontal phone against their forehead.
+  */
+  calibrationEndsAt = Date.now() + 1000;
+  lastScreenAngle = getScreenAngle();
+}
+
+function handleOrientation(event) {
+  if (!motionEnabled || !gameActive) {
+    return;
+  }
+
+  /*
+    The game should only respond while the phone
+    is being held horizontally.
+  */
+  if (!isPhoneLandscape()) {
+    return;
+  }
+
+  const screenAngle = getScreenAngle();
+
+  /*
+    Recalibrate if the player rotates the phone
+    to the other landscape direction.
+  */
+  if (screenAngle !== lastScreenAngle) {
+    recalibrateTilt();
+    return;
+  }
+
+  const tiltValue = getLandscapeTilt(event);
+
+  if (tiltValue === null) {
+    return;
+  }
+
+  currentTilt = tiltValue;
+
+  /*
+    Wait for the phone to settle before establishing
+    its neutral forehead position.
+  */
+  if (Date.now() < calibrationEndsAt) {
+    return;
+  }
+
+  if (neutralTilt === null) {
+    neutralTilt = currentTilt;
+    tiltLocked = false;
+    return;
+  }
+
+  const difference =
+    (currentTilt - neutralTilt) * correctDirection;
+
+  /*
+    After an answer, the phone must return close to
+    its original position before another answer can
+    be recorded.
+  */
+  if (tiltLocked) {
+    if (Math.abs(difference) <= neutralZone) {
+      neutralTilt = currentTilt;
+      tiltLocked = false;
     }
 
-    function registerTiltAnswer(wasCorrect) {
-      if (tiltLocked || !gameActive) {
-        return;
-      }
+    return;
+  }
 
-      tiltLocked = true;
+  if (difference >= correctTiltAmount) {
+    registerTiltAnswer(true);
+  } else if (difference <= -skipTiltAmount) {
+    registerTiltAnswer(false);
+  }
+}
 
-      answerWord(wasCorrect);
+function registerTiltAnswer(wasCorrect) {
+  if (tiltLocked || !gameActive) {
+    return;
+  }
 
-      if ("vibrate" in navigator) {
-        navigator.vibrate(100);
-      }
+  tiltLocked = true;
+  answerWord(wasCorrect);
 
-      setTimeout(() => {
-        if (currentBeta !== null) {
-          neutralBeta = currentBeta;
-        }
-
-        tiltLocked = false;
-      }, tiltCooldown);
-    }
+  if ("vibrate" in navigator) {
+    navigator.vibrate(100);
+  }
+}
 
     function answerWord(wasCorrect) {
       if (!gameActive || !currentWord) {
@@ -914,7 +1008,27 @@
           ? "Motion controls are ready."
           : "";
     }
+    window.addEventListener("orientationchange", () => {
+  setTimeout(() => {
+    if (gameActive) {
+      recalibrateTilt();
+    }
+  }, 300);
+});
 
+if (
+  screen.orientation &&
+  typeof screen.orientation.addEventListener === "function"
+) {
+  screen.orientation.addEventListener("change", () => {
+    setTimeout(() => {
+      if (gameActive) {
+        recalibrateTilt();
+      }
+    }, 300);
+  });
+}
+    
     loadCategories();
   </script>
 </body>
