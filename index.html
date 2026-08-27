@@ -344,7 +344,7 @@
       <div id="wordCard" class="word-card">Get Ready</div>
 
       <p id="gameInstructions" class="game-instructions">
-        Tilt DOWN = Correct • Tilt UP = Skip
+        Tilt screen toward FLOOR = Correct • toward CEILING = Skip
       </p>
 
       <div id="testControls" class="test-controls">
@@ -726,7 +726,7 @@
       let count = 3;
 
       gameInstructions.textContent =
-        "Tilt DOWN = Correct • Tilt UP = Skip";
+        "Tilt screen toward FLOOR = Correct • toward CEILING = Skip";
 
       function nextCount() {
         if (!gameActive || gamePhase !== "countdown") {
@@ -789,15 +789,15 @@
     }
 
     function getScreenAngle() {
+      if (typeof window.orientation === "number") {
+        return window.orientation;
+      }
+
       if (
         screen.orientation &&
         typeof screen.orientation.angle === "number"
       ) {
         return screen.orientation.angle;
-      }
-
-      if (typeof window.orientation === "number") {
-        return window.orientation;
       }
 
       return window.innerWidth > window.innerHeight ? 90 : 0;
@@ -835,28 +835,35 @@
     }
 
     function getScreenRelativePitch(event) {
-      const beta = Number.isFinite(event.beta) ? event.beta : null;
-      const gamma = Number.isFinite(event.gamma) ? event.gamma : null;
-
-      if (beta === null || gamma === null) {
+      if (!Number.isFinite(event.beta) || !Number.isFinite(event.gamma)) {
         return null;
       }
 
+      const beta = event.beta * Math.PI / 180;
+      const gamma = event.gamma * Math.PI / 180;
+
+      // Convert the Euler angles into a gravity vector in device coordinates.
+      // This stays continuous when gamma approaches its ±90° limit.
+      const gravityX = Math.sin(gamma) * Math.cos(beta);
+      const gravityY = -Math.sin(beta);
+      const gravityZ = -Math.cos(beta) * Math.cos(gamma);
+
       const angle = ((getScreenAngle() % 360) + 360) % 360;
+      let gravityTowardScreenTop;
 
       if (angle === 90) {
-        return gamma;
+        gravityTowardScreenTop = -gravityX;
+      } else if (angle === 270) {
+        gravityTowardScreenTop = gravityX;
+      } else if (angle === 180) {
+        gravityTowardScreenTop = -gravityY;
+      } else {
+        gravityTowardScreenTop = gravityY;
       }
 
-      if (angle === 270) {
-        return -gamma;
-      }
+      const uprightComponent = -gravityTowardScreenTop;
 
-      if (angle === 180) {
-        return -beta;
-      }
-
-      return beta;
+      return Math.atan2(gravityZ, uprightComponent) * 180 / Math.PI;
     }
 
     function smoothPitch(nextPitch) {
@@ -918,7 +925,7 @@
         answerArmed = true;
         gamePhase = "playing";
         gameInstructions.textContent =
-          "Tilt DOWN = Correct • Tilt UP = Skip";
+          "Tilt screen toward FLOOR = Correct • toward CEILING = Skip";
 
         if (resumeCurrentWordAfterCentre && currentWord) {
           wordCard.textContent = currentWord;
@@ -957,7 +964,7 @@
         answerArmed = true;
         gamePhase = "playing";
         gameInstructions.textContent =
-          "Tilt DOWN = Correct • Tilt UP = Skip";
+          "Tilt screen toward FLOOR = Correct • toward CEILING = Skip";
         showNextWord();
       }
     }
