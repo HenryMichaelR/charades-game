@@ -139,6 +139,21 @@
       font-weight: bold;
     }
 
+    .exit-game-button {
+      flex-shrink: 0;
+      padding: 8px 14px;
+      border: none;
+      border-radius: 10px;
+      background: #dc2626;
+      color: white;
+      font-size: 15px;
+      font-weight: bold;
+    }
+
+    .exit-game-button:active {
+      transform: scale(0.96);
+    }
+
     .word-card {
       width: 100%;
       min-height: 55vh;
@@ -339,6 +354,14 @@
       <div class="game-info">
         <span>Time: <span id="timeRemaining">60</span></span>
         <span>Score: <span id="score">0</span></span>
+        <button
+          class="exit-game-button"
+          type="button"
+          aria-label="End the current round"
+          onclick="exitGame()"
+        >
+          Exit
+        </button>
       </div>
 
       <div id="wordCard" class="word-card">Get Ready</div>
@@ -1178,6 +1201,22 @@
       currentWord = availableWords.shift();
       wordCard.textContent = currentWord;
       startRoundTimer();
+    }
+
+    function exitGame() {
+      if (!gameActive) {
+        return;
+      }
+
+      const shouldExit = window.confirm(
+        "End this round and view your results?"
+      );
+
+      if (!shouldExit) {
+        return;
+      }
+
+      finishGame();
     }
 
     function finishGame() {
