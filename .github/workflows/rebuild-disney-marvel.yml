@@ -1,0 +1,81 @@
+name: Rebuild Disney and Marvel categories
+
+on:
+  push:
+    paths:
+      - ".github/workflows/rebuild-disney-marvel.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  rebuild:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Replace Disney and Marvel word banks
+        run: python .github/scripts/rebuild_disney_marvel.py
+
+      - name: Validate word banks
+        run: |
+          node --check words.js
+          python - <<'PY'
+          import json
+          import re
+          from pathlib import Path
+
+          text = Path("words.js").read_text(encoding="utf-8")
+          payload = text.split("window.CHARADES_CATEGORIES = ", 1)[1].strip()
+          categories = json.loads(payload[:-1])
+
+          disney = categories["Disney"]
+          marvel = categories["Marvel"]
+
+          assert len(disney) == 106, len(disney)
+          assert len(marvel) == 89, len(marvel)
+
+          def normalized(value):
+              return re.sub(r"[^a-z0-9]+", "", value.casefold())
+
+          assert len({normalized(value) for value in disney}) == len(disney)
+          assert len({normalized(value) for value in marvel}) == len(marvel)
+
+          for required in [
+              "Mickey Mouse", "Cinderella", "Ariel", "Simba", "Aladdin",
+              "Elsa", "Moana", "Stitch", "Woody", "Buzz Lightyear",
+              "Lightning McQueen", "Dory", "Mickey Mouse"
+          ]:
+              assert required in disney, required
+
+          for required in [
+              "Spider-Man", "Iron Man", "Captain America", "Thor", "Hulk",
+              "Black Panther", "Doctor Strange", "Deadpool", "Wolverine",
+              "Loki", "Thanos", "Venom", "Groot"
+          ]:
+              assert required in marvel, required
+
+          for removed in [
+              "A Friend", "A La Mode", "A'di", "Aaron Carpenter",
+              "Abigail Marigold", "Adam Shockley", "Aardwolf (Hyena Clan)"
+          ]:
+              assert removed not in marvel, removed
+
+          print("Validated quality-focused Disney and Marvel categories")
+          PY
+
+      - name: Commit rebuilt categories
+        run: |
+          rm -f .github/scripts/rebuild_disney_marvel.py
+          rm -f .github/workflows/rebuild-disney-marvel.yml
+          rmdir .github/scripts 2>/dev/null || true
+          rmdir .github/workflows 2>/dev/null || true
+          rmdir .github 2>/dev/null || true
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "Rebuild Disney and Marvel with recognizable characters"
+          git push
