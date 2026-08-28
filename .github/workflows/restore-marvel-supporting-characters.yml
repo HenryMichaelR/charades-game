@@ -1,0 +1,72 @@
+name: Restore recognizable Marvel supporting characters
+
+on:
+  push:
+    paths:
+      - ".github/workflows/restore-marvel-supporting-characters.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  restore:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Restore supporting characters
+        run: python .github/scripts/restore_marvel_supporting_characters.py
+
+      - name: Validate Marvel category
+        run: |
+          node --check words.js
+          python - <<'PY'
+          import json
+          import re
+          from pathlib import Path
+
+          text = Path("words.js").read_text(encoding="utf-8")
+          payload = text.split("window.CHARADES_CATEGORIES = ", 1)[1].strip()
+          categories = json.loads(payload[:-1])
+          marvel = categories["Marvel"]
+          normalized = [re.sub(r"[^a-z0-9]+", "", name.casefold()) for name in marvel]
+
+          assert len(marvel) == 160, len(marvel)
+          assert len(normalized) == len(set(normalized))
+
+          for name in [
+              "Aunt May",
+              "Mary Jane",
+              "Pepper Potts",
+              "Happy Hogan",
+              "Peggy Carter",
+          ]:
+              assert name in marvel, name
+
+          for existing in [
+              "Spider-Man",
+              "Doctor Doom",
+              "Kushala",
+              "Silver Sable",
+              "M'Baku",
+          ]:
+              assert existing in marvel, existing
+
+          print("Validated 160 Marvel characters")
+          PY
+
+      - name: Commit final category
+        run: |
+          rm -f .github/scripts/restore_marvel_supporting_characters.py
+          rm -f .github/workflows/restore-marvel-supporting-characters.yml
+          rmdir .github/scripts 2>/dev/null || true
+          rmdir .github/workflows 2>/dev/null || true
+          rmdir .github 2>/dev/null || true
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "Restore recognizable Marvel supporting characters"
+          git push
