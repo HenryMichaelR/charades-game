@@ -1,0 +1,71 @@
+name: Add TV Shows category
+
+on:
+  push:
+    paths:
+      - ".github/workflows/add-tv-shows-category.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Add TV Shows category
+        run: python .github/scripts/add_tv_shows_category.py
+
+      - name: Validate category data
+        run: |
+          node --check words.js
+          python - <<'PY'
+          import json
+          import re
+          from pathlib import Path
+
+          text = Path("words.js").read_text(encoding="utf-8")
+          payload = text.split("window.CHARADES_CATEGORIES = ", 1)[1].strip()
+          categories = json.loads(payload[:-1])
+          words = categories["TV Shows"]
+          normalized = [re.sub(r"[^a-z0-9]+", "", item.casefold()) for item in words]
+
+          assert len(words) == 195, len(words)
+          assert len(normalized) == len(set(normalized))
+
+          required = [
+              "The Office",
+              "Friends",
+              "Breaking Bad",
+              "Game of Thrones",
+              "Stranger Things",
+              "Michael Scott",
+              "Dwight Schrute",
+              "Walter White",
+              "Rachel Green",
+              "Homer Simpson",
+              "Sheldon Cooper",
+              "Wednesday Addams",
+          ]
+          for item in required:
+              assert item in words, item
+
+          print("Validated 195 recognizable TV prompts")
+          PY
+
+      - name: Commit final category
+        run: |
+          rm -f .github/scripts/add_tv_shows_category.py
+          rm -f .github/workflows/add-tv-shows-category.yml
+          rmdir .github/scripts 2>/dev/null || true
+          rmdir .github/workflows 2>/dev/null || true
+          rmdir .github 2>/dev/null || true
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "Add recognizable TV shows and characters"
+          git push
