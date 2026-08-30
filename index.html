@@ -89,8 +89,7 @@
       font-size: 18px;
     }
 
-    .primary-button,
-    .secondary-button {
+    .primary-button {
       width: 100%;
       border-radius: 14px;
       font-size: 18px;
@@ -105,13 +104,6 @@
       color: white;
     }
 
-    .secondary-button {
-      margin-top: 12px;
-      padding: 14px;
-      border: 2px solid #2563eb;
-      background: white;
-      color: #2563eb;
-    }
 
     .message {
       min-height: 24px;
@@ -211,29 +203,6 @@
       color: #b45309;
     }
 
-    .test-controls {
-      display: none;
-      margin-top: 12px;
-      gap: 10px;
-    }
-
-    .test-controls button {
-      flex: 1;
-      padding: 12px;
-      border: none;
-      border-radius: 12px;
-      font-weight: bold;
-    }
-
-    .test-skip {
-      background: #f59e0b;
-      color: white;
-    }
-
-    .test-correct {
-      background: #16a34a;
-      color: white;
-    }
 
     #orientationGate {
       display: none;
@@ -335,14 +304,6 @@
         Enable Motion and Start
       </button>
 
-      <button
-        id="testButton"
-        class="secondary-button"
-        type="button"
-        onclick="startTestGame()"
-      >
-        Test on Computer
-      </button>
 
       <p id="motionMessage" class="message"></p>
 
@@ -372,15 +333,6 @@
         Tilt screen toward FLOOR = Correct • toward CEILING = Skip
       </p>
 
-      <div id="testControls" class="test-controls">
-        <button class="test-skip" type="button" onclick="answerWord(false)">
-          Test Skip
-        </button>
-
-        <button class="test-correct" type="button" onclick="answerWord(true)">
-          Test Correct
-        </button>
-      </div>
     </section>
 
     <section id="resultsScreen" class="hidden">
@@ -411,7 +363,6 @@
     const finalScoreDisplay = document.getElementById("finalScore");
     const resultsList = document.getElementById("resultsList");
     const motionMessage = document.getElementById("motionMessage");
-    const testControls = document.getElementById("testControls");
 
     let availableWords = [];
     let currentWord = "";
@@ -419,15 +370,16 @@
     let score = 0;
     let timeRemaining = 60;
     let timerAnimationFrame = null;
-    let timerEndTimeout = null;
     let timerStarted = false;
+    let timerRemainingMs = 0;
+    let timerLastTickAt = null;
+    let timerPausedForOrientation = false;
     let countdownTimeout = null;
     let orientationPollTimer = null;
     let gameActive = false;
     let gamePhase = "idle";
 
     let motionEnabled = false;
-    let testMode = false;
 
     let filteredPitch = null;
     let neutralPitch = null;
@@ -668,7 +620,6 @@
         );
 
         motionEnabled = true;
-        testMode = false;
         motionMessage.textContent = "Motion controls enabled.";
         startGame();
       } catch (error) {
@@ -679,13 +630,6 @@
       }
     }
 
-    function startTestGame() {
-      initializeAudio();
-      motionEnabled = false;
-      testMode = true;
-      motionMessage.textContent = "";
-      startGame();
-    }
 
     function startGame() {
       const selectedCategory = categorySelect.value;
@@ -707,7 +651,6 @@
       menuScreen.classList.add("hidden");
       resultsScreen.classList.add("hidden");
       gameScreen.classList.remove("hidden");
-      testControls.style.display = testMode ? "flex" : "none";
 
       document.body.classList.toggle("motion-game", motionEnabled);
       updateOrientationState();
@@ -720,11 +663,7 @@
         orientationPollTimer = setInterval(updateOrientationState, 250);
       }
 
-      if (testMode) {
-        beginRound();
-      } else {
-        beginCountdown();
-      }
+      beginCountdown();
     }
 
     function resetMotionState() {
@@ -773,10 +712,58 @@
         timerAnimationFrame = null;
       }
 
-      if (timerEndTimeout !== null) {
-        clearTimeout(timerEndTimeout);
-        timerEndTimeout = null;
+      timerLastTickAt = null;
+      timerPausedForOrientation = false;
+    }
+
+    function roundTimerCanRun() {
+      return (
+        (!motionEnabled || isPhoneLandscape()) &&
+        gamePhase !== "centering"
+      );
+    }
+
+    function drawRoundTimer(timestamp) {
+      timerAnimationFrame = null;
+
+      if (!gameActive || !timerStarted) {
+        return;
       }
+
+      if (!roundTimerCanRun()) {
+        timerPausedForOrientation = true;
+        timerLastTickAt = null;
+        timerAnimationFrame = requestAnimationFrame(drawRoundTimer);
+        return;
+      }
+
+      if (timerPausedForOrientation || timerLastTickAt === null) {
+        timerPausedForOrientation = false;
+        timerLastTickAt = timestamp;
+      } else {
+        timerRemainingMs -= timestamp - timerLastTickAt;
+        timerLastTickAt = timestamp;
+      }
+
+      const displayedSeconds = Math.max(
+        0,
+        Math.ceil(timerRemainingMs / 1000)
+      );
+
+      if (displayedSeconds !== timeRemaining) {
+        timeRemaining = displayedSeconds;
+        timeDisplay.textContent = String(displayedSeconds);
+      }
+
+      if (timerRemainingMs <= 0) {
+        timerRemainingMs = 0;
+        timeRemaining = 0;
+        timeDisplay.textContent = "0";
+        finishGame({ reason: "timer" });
+        return;
+      }
+
+      timerAnimationFrame = requestAnimationFrame(drawRoundTimer);
     }
 
     function startRoundTimer() {
@@ -786,48 +773,11 @@
 
       timerStarted = true;
       stopRoundTimer();
-
-      const durationMs = timeRemaining * 1000;
-      const endsAt = Date.now() + durationMs;
-
-      function drawTimer() {
-        if (!gameActive || !timerStarted) {
-          return;
-        }
-
-        const millisecondsRemaining = endsAt - Date.now();
-        const displayedSeconds = Math.max(
-          0,
-          Math.ceil(millisecondsRemaining / 1000)
-        );
-
-        if (displayedSeconds !== timeRemaining) {
-          timeRemaining = displayedSeconds;
-          timeDisplay.textContent = String(displayedSeconds);
-        }
-
-        if (millisecondsRemaining <= 0) {
-          timeRemaining = 0;
-          timeDisplay.textContent = "0";
-          finishGame({ reason: "timer" });
-          return;
-        }
-
-        timerAnimationFrame = requestAnimationFrame(drawTimer);
-      }
-
+      timerRemainingMs = timeRemaining * 1000;
+      timerLastTickAt = null;
+      timerPausedForOrientation = !roundTimerCanRun();
       timeDisplay.textContent = String(timeRemaining);
-      timerAnimationFrame = requestAnimationFrame(drawTimer);
-
-      timerEndTimeout = setTimeout(() => {
-        if (!gameActive || !timerStarted) {
-          return;
-        }
-
-        timeRemaining = 0;
-        timeDisplay.textContent = "0";
-        finishGame({ reason: "timer" });
-      }, durationMs + 100);
+      timerAnimationFrame = requestAnimationFrame(drawRoundTimer);
     }
 
     function beginRound() {
@@ -840,14 +790,7 @@
       resetMotionState();
       lastScreenAngle = getScreenAngle();
 
-      if (testMode) {
-        gamePhase = "playing";
-        answerArmed = true;
-        gameInstructions.textContent = "Use the test buttons below";
-        showNextWord();
-      } else {
-        beginAutomaticCentering(false);
-      }
+      beginAutomaticCentering(false);
     }
 
     function getScreenAngle() {
@@ -1156,7 +1099,7 @@
 
       showAnswerFeedback(wasCorrect);
 
-      if (motionEnabled && !testMode) {
+      if (motionEnabled) {
         // Show the next word immediately, but keep motion locked until the
         // phone returns to centre. This preserves the reset protection without
         // interrupting the word flow with a separate message screen.
@@ -1286,6 +1229,11 @@
         "portrait-mode",
         portraitBlocked
       );
+
+      if (portraitBlocked && timerStarted) {
+        timerPausedForOrientation = true;
+        timerLastTickAt = null;
+      }
     }
 
     function handleScreenOrientationChange() {
