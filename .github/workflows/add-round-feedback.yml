@@ -1,0 +1,74 @@
+name: Add round feedback and timer options
+
+on:
+  push:
+    paths:
+      - ".github/workflows/add-round-feedback.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Apply game updates
+        run: python .github/scripts/add_round_feedback.py
+
+      - name: Validate updated game
+        run: |
+          python - <<'PY'
+          import re
+          from pathlib import Path
+
+          text = Path("index.html").read_text(encoding="utf-8")
+
+          required = [
+              '<option value="180">3 minutes</option>',
+              '<option value="300">5 minutes</option>',
+              'function vibratePhone(pattern)',
+              'function playTimeUpSound()',
+              'function signalTimeUp()',
+              'vibratePhone(wasCorrect ? 120 : [70, 60, 70]);',
+              'finishGame({ reason: "timer" });',
+              'finishGame({ reason: "exit" });',
+              'finishGame({ reason: "words-exhausted" });',
+              '(reason === "timer" || reason === "exit") && Boolean(currentWord)',
+          ]
+
+          for item in required:
+              assert item in text, item
+
+          assert text.count('finishGame({ reason: "timer" });') == 2
+          assert 'navigator.vibrate(wasCorrect ? 120 : [70, 60, 70]);' not in text
+          assert text.count('vibratePhone(wasCorrect ? 120 : [70, 60, 70]);') == 1
+
+          scripts = re.findall(r"<script(?:[^>]*)>(.*?)</script>", text, flags=re.S)
+          inline_scripts = [script for script in scripts if script.strip()]
+          assert inline_scripts, "No inline JavaScript found"
+          Path("/tmp/charades-inline.js").write_text(
+              "\n".join(inline_scripts),
+              encoding="utf-8",
+          )
+
+          print("Validated requested round behavior changes")
+          PY
+          node --check /tmp/charades-inline.js
+
+      - name: Commit final update
+        run: |
+          rm -f .github/scripts/add_round_feedback.py
+          rm -f .github/workflows/add-round-feedback.yml
+          rmdir .github/scripts 2>/dev/null || true
+          rmdir .github/workflows 2>/dev/null || true
+          rmdir .github 2>/dev/null || true
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "Add round vibrations and time-up alerts"
+          git push
