@@ -322,6 +322,8 @@
         <option value="60" selected>60 seconds</option>
         <option value="90">90 seconds</option>
         <option value="120">2 minutes</option>
+        <option value="180">3 minutes</option>
+        <option value="300">5 minutes</option>
       </select>
 
       <button
@@ -550,6 +552,37 @@
       playTone(220, now + 0.14, 0.25);
     }
 
+    function vibratePhone(pattern) {
+      if (!("vibrate" in navigator)) {
+        return;
+      }
+
+      try {
+        navigator.vibrate(pattern);
+      } catch (error) {
+        console.info("Phone vibration was not available:", error);
+      }
+    }
+
+    function playTimeUpSound() {
+      initializeAudio();
+
+      if (!audioContext) {
+        return;
+      }
+
+      const now = audioContext.currentTime;
+      playTone(784, now, 0.28, 0.42);
+      playTone(784, now + 0.38, 0.28, 0.42);
+      playTone(784, now + 0.76, 0.28, 0.42);
+      playTone(523, now + 1.14, 0.65, 0.5);
+    }
+
+    function signalTimeUp() {
+      vibratePhone([250, 100, 250, 100, 500]);
+      playTimeUpSound();
+    }
+
     function showAnswerFeedback(wasCorrect) {
       clearTimeout(feedbackTimeout);
       wordCard.classList.remove("correct-feedback", "skip-feedback");
@@ -776,7 +809,7 @@
         if (millisecondsRemaining <= 0) {
           timeRemaining = 0;
           timeDisplay.textContent = "0";
-          finishGame();
+          finishGame({ reason: "timer" });
           return;
         }
 
@@ -793,7 +826,7 @@
 
         timeRemaining = 0;
         timeDisplay.textContent = "0";
-        finishGame();
+        finishGame({ reason: "timer" });
       }, durationMs + 100);
     }
 
@@ -1099,10 +1132,6 @@
       resetGestureHold();
       answerCooldownEndsAt = Date.now() + answerCooldownMs;
       answerWord(wasCorrect);
-
-      if ("vibrate" in navigator) {
-        navigator.vibrate(wasCorrect ? 120 : [70, 60, 70]);
-      }
     }
 
     function answerWord(wasCorrect) {
@@ -1114,6 +1143,8 @@
         word: currentWord,
         correct: wasCorrect
       });
+
+      vibratePhone(wasCorrect ? 120 : [70, 60, 70]);
 
       if (wasCorrect) {
         score += 1;
@@ -1149,7 +1180,7 @@
       }
 
       if (availableWords.length === 0) {
-        finishGame();
+        finishGame({ reason: "words-exhausted" });
         return;
       }
 
@@ -1171,12 +1202,32 @@
         return;
       }
 
-      finishGame();
+      finishGame({ reason: "exit" });
     }
 
-    function finishGame() {
+    function finishGame({ reason = "exit" } = {}) {
       if (!gameActive) {
         return;
+      }
+
+      const shouldRecordCurrentWord =
+        (reason === "timer" || reason === "exit") && Boolean(currentWord);
+
+      if (shouldRecordCurrentWord) {
+        const lastResult = results[results.length - 1];
+        const currentWordAlreadyRecorded =
+          lastResult && lastResult.word === currentWord;
+
+        if (!currentWordAlreadyRecorded) {
+          results.push({
+            word: currentWord,
+            correct: false
+          });
+        }
+      }
+
+      if (reason === "timer") {
+        signalTimeUp();
       }
 
       gameActive = false;
@@ -1196,6 +1247,7 @@
         const emptyItem = document.createElement("li");
         emptyItem.textContent = "No words were answered.";
         resultsList.appendChild(emptyItem);
+        currentWord = "";
         return;
       }
 
@@ -1207,6 +1259,8 @@
           result.correct ? "correct-result" : "skip-result";
         resultsList.appendChild(listItem);
       });
+
+      currentWord = "";
     }
 
     function returnToMenu() {
